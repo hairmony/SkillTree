@@ -1,0 +1,226 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SkillTree viewer</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f7f7f8; color: #222; }
+    header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+             padding: 12px 20px; background: #fff; border-bottom: 1px solid #ddd; }
+    main { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; }
+    #graphbox { flex: 2; background: #fff; border: 1px solid #ddd; border-radius: 8px;
+                padding: 12px; overflow: auto; min-height: 200px; }
+    #side { flex: 1; max-width: 420px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px;
+            padding: 10px 12px; margin-bottom: 10px; }
+    .card.locked { opacity: 0.55; }
+    .card.mastered { border-color: #2b8a3e; }
+    .card p { margin: 6px 0; font-size: 14px; }
+    .card ul { margin: 4px 0 8px; padding-left: 20px; font-size: 13px; }
+    .tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+    .tag.locked { background: #eee; }
+    .tag.unlocked { background: #fff3bf; }
+    .tag.mastered { background: #b2f2bb; }
+    details { margin: 0 20px; }
+    summary { cursor: pointer; padding: 10px 0; font-weight: bold; }
+    .form { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .form input, .form textarea { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 6px; }
+    .form textarea { height: 160px; }
+    button { padding: 6px 12px; cursor: pointer; }
+    #msg { margin-left: 10px; font-size: 14px; }
+    .detail { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; font-size: 14px; }
+    .detail h4 { margin: 10px 0 4px; font-size: 13px; text-transform: uppercase; color: #666; }
+    .detail .note { font-size: 12px; color: #888; }
+    .detail blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ddd; color: #555; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>SkillTree</b>
+    <select id="trees"></select>
+    <button id="reset">Reset progress</button>
+    <button id="del">Delete tree</button>
+  </header>
+
+  <details>
+    <summary>Create a new tree from text</summary>
+    <div class="form">
+      <label>Tree id (letters, numbers, dashes)</label>
+      <input id="newId" placeholder="e.g. discrete-math">
+      <label>Topic</label>
+      <input id="newTopic" placeholder="e.g. Introduction to Discrete Mathematics">
+      <label>Source (a name, or the link to the page you copied from)</label>
+      <input id="newSource" placeholder="e.g. https://philsci-archive.pitt.edu/id/eprint/16561/1/Discrete%20and%20Continuous.pdf">
+      <label>Reference text (paragraphs separated by a blank line)</label>
+      <textarea id="newText"></textarea>
+      <button id="gen">Generate graph</button>
+      <span id="msg"></span>
+    </div>
+  </details>
+
+  <main>
+    <div id="graphbox"><div id="graph"></div></div>
+    <div id="side"></div>
+  </main>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false });
+
+    let TREE = new URLSearchParams(location.search).get("tree") || "demo";
+    let counter = 0;
+
+    const esc = s => String(s).replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    async function api(path, options) {
+      const r = await fetch(path, options);
+      if (!r.ok) {
+        let msg = String(r.status);
+        try {
+          const j = await r.json();
+          msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+        } catch {}
+        throw new Error(msg);
+      }
+      return r.json();
+    }
+
+    const post = (path, body) => api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    async function loadTrees() {
+      const trees = await api("/trees");
+      const sel = document.getElementById("trees");
+      sel.innerHTML = trees.map(t =>
+        `<option value="${esc(t.id)}">${esc(t.title)} (${esc(t.id)})</option>`).join("");
+      if (trees.some(t => t.id === TREE)) sel.value = TREE;
+      else if (trees.length) TREE = trees[0].id;
+    }
+
+    async function load(data) {
+      data ??= await api(`/trees/${encodeURIComponent(TREE)}`);
+
+      let src = "graph TD\n";
+      for (const n of data.nodes)
+        src += `  n_${n.id}["${n.title.replace(/"/g, "'")}"]:::${n.status}\n`;
+      for (const e of data.edges)
+        src += `  n_${e.parent_id} --> n_${e.child_id}\n`;
+      src += "  classDef locked fill:#eee,stroke:#bbb,color:#999\n";
+      src += "  classDef unlocked fill:#fff3bf,stroke:#f08c00\n";
+      src += "  classDef mastered fill:#b2f2bb,stroke:#2b8a3e\n";
+
+      const { svg } = await mermaid.render("g" + (counter++), src);
+      document.getElementById("graph").innerHTML = svg;
+
+      const order = { unlocked: 0, locked: 1, mastered: 2 };
+      const nodes = [...data.nodes].sort((a, b) => order[a.status] - order[b.status]);
+      document.getElementById("side").innerHTML = nodes.map(n => `
+        <div class="card ${n.status}">
+          <b>${esc(n.title)}</b><span class="tag ${n.status}">${n.status}</span>
+          <p>${esc(n.description)}</p>
+          <ul>${n.objectives.map(o => `<li>${esc(o)}</li>`).join("")}</ul>
+          ${n.status === "unlocked"
+            ? `<button class="master" data-id="${esc(n.id)}">Mark mastered</button>` : ""}
+          <button class="more" data-id="${esc(n.id)}">Show details</button>
+          <div class="detail" id="d_${esc(n.id)}" hidden></div>
+        </div>`).join("");
+    }
+
+    document.getElementById("side").addEventListener("click", async e => {
+      const more = e.target.closest(".more");
+      if (more) return showDetails(more);
+      const btn = e.target.closest(".master");
+      if (!btn) return;
+      load(await post(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(btn.dataset.id)}/mastered`));
+    });
+
+    async function showDetails(btn) {
+      const box = document.getElementById("d_" + btn.dataset.id);
+      if (!box.hidden) { box.hidden = true; btn.textContent = "Show details"; return; }
+      box.hidden = false;
+      btn.textContent = "Hide details";
+      box.innerHTML = "<p class='note'>Local model is writing this page. This could take a minute...</p>";
+      try {
+        const c = await api(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(btn.dataset.id)}/content`);
+        box.innerHTML = renderContent(c);
+      } catch (err) {
+        box.innerHTML = `<p class='note'>Failed: ${esc(err.message)}</p>`;
+      }
+    }
+
+    function link(s) {
+      return s.url
+        ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.source)}</a>`
+        : esc(s.source);
+    }
+
+    function renderContent(c) {
+      const paras = c.details.split(/\n+/).map(p => p.trim()).filter(Boolean).map(p => `<p>${esc(p)}</p>`).join("");
+      const examples = c.examples.length
+        ? `<h4>Examples</h4><ul>${c.examples.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+           <p class="note">Examples are written by an LLM, double-check them.</p>` : "";
+      const sources = c.sources.length
+        ? `<h4>Sources</h4><ul>${c.sources.map(s => `<li>${link(s)}</li>`).join("")}</ul>`
+        : `<h4>Sources</h4><p class="note">No source recorded for this page.</p>`;
+      return paras + examples + sources;
+    }
+
+    document.getElementById("reset").onclick = async () =>
+      load(await post(`/trees/${encodeURIComponent(TREE)}/reset`));
+
+    document.getElementById("del").onclick = async () => {
+      const sel = document.getElementById("trees");
+      if (!sel.value) return;
+      if (!confirm(`Are you sure you want to delete "${sel.value}" and its stored data?`)) return;
+      await api(`/trees/${encodeURIComponent(sel.value)}`, { method: "DELETE" });
+      await loadTrees();
+      if (sel.options.length) {
+        TREE = sel.value;
+        await load();
+      } else {
+        document.getElementById("graph").innerHTML = "<p>No trees yet.</p>";
+        document.getElementById("side").innerHTML = "";
+      }
+    };
+
+    document.getElementById("trees").onchange = e => { TREE = e.target.value; load(); };
+
+    document.getElementById("gen").onclick = async () => {
+      const id = document.getElementById("newId").value.trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const topic = document.getElementById("newTopic").value.trim();
+      const text = document.getElementById("newText").value.trim();
+      const msg = document.getElementById("msg");
+      const btn = document.getElementById("gen");
+      if (!id || !topic || !text) { msg.textContent = "Please fill in all fields."; return; }
+
+      btn.disabled = true;
+      msg.textContent = "Growing your skill tree... this could take a few minutes.";
+      try {
+        const source = document.getElementById("newSource").value.trim() || "pasted text";
+        await post("/ingest/text", { tree_id: id, source, text });
+        const data = await post("/trees/generate", { tree_id: id, topic });
+        TREE = id;
+        await loadTrees();
+        await load(data);
+        msg.textContent = "Done.";
+      } catch (err) {
+        msg.textContent = "Failed: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    await loadTrees();
+    if (document.getElementById("trees").options.length) {
+      await load();
+    } else {
+      document.getElementById("graph").innerHTML = "<p>No trees yet</p>";
+    }
+  </script>
+</body>
+</html>
