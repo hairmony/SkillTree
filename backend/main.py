@@ -5,17 +5,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+import numpy as np
+
 import database
-from dag_structure import compute_status
+from dag_structure import Node, compute_status
 from demo import DEMO_DAG
 
 import httpx
 from pydantic import BaseModel
 
 import ingest
-from ollama import embed
+from ollama_client import embed
 
+import background
 import dag_generate
+import knowledge_tracer
+from quiz_generator import get_quiz_generator
 
 app = FastAPI(title="SkillTree")
 app.add_middleware(
@@ -54,8 +59,10 @@ def list_trees():
 def read_tree(tree_id: str):
     dag = get_tree(tree_id)
     status = compute_status(dag, database.get_mastered(tree_id))
+    mastery = database.get_mastery(tree_id)
     return {
-        "nodes": [{**n.model_dump(), "status": status[n.id]} for n in dag.nodes],
+        "nodes": [{**n.model_dump(), "status": status[n.id],
+                   "mastery": round(mastery.get(n.id, 0.0), 3)} for n in dag.nodes],
         "edges": [e.model_dump() for e in dag.edges],
     }
 
@@ -69,6 +76,7 @@ def mark_mastered(tree_id: str, node_id: str):
     if status[node_id] == "locked":
         raise HTTPException(409, "node is locked")
     database.add_mastered(tree_id, node_id)
+    queue_unlocked(tree_id)
     return read_tree(tree_id)
 
 
@@ -76,23 +84,42 @@ def mark_mastered(tree_id: str, node_id: str):
 def reset(tree_id: str):
     get_tree(tree_id)
     database.reset_progress(tree_id)
+    queue_unlocked(tree_id)
     return read_tree(tree_id)
 
 
 class IngestTextRequest(BaseModel):
-    tree_id: str
+    tree_id: str | None = None  # optional: generated from topic when left out
+    topic: str | None = None
     source: str = "pasted text"
     text: str
     max_chars: int = 800
 
 
+def new_tree_id(topic: str) -> str:
+    """URL-safe id from the topic, with -2, -3, ... added if it's already in use."""
+    base = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")[:60].strip("-") or "tree"
+    tree_id, i = base, 2
+    while database.tree_id_in_use(tree_id):
+        tree_id, i = f"{base}-{i}", i + 1
+    return tree_id
+
+
 @app.post("/ingest/text")
 def ingest_text(req: IngestTextRequest):
+    """Add reference text to a tree. Without tree_id, a new id is made from topic and
+    returned, to pass on to /trees/generate."""
+    if req.tree_id:
+        tree_id = req.tree_id
+    elif req.topic and req.topic.strip():
+        tree_id = new_tree_id(req.topic)
+    else:
+        raise HTTPException(422, "give a topic (or a tree_id)")
     try:
-        count = ingest.ingest_text(req.tree_id, req.source, req.text, req.max_chars)
+        count = ingest.ingest_text(tree_id, req.source, req.text, req.max_chars)
     except httpx.ConnectError:
         raise HTTPException(503, "Can't reach Ollama. Is it running?")
-    return {"chunks_added": count}
+    return {"chunks_added": count, "tree_id": tree_id}
 
 
 @app.get("/search")
@@ -121,6 +148,7 @@ def generate_tree(req: GenerateRequest):
         raise HTTPException(422, str(e))
     database.save_tree(req.tree_id, req.topic, dag)
     database.reset_progress(req.tree_id)
+    queue_unlocked(req.tree_id)
     return read_tree(req.tree_id)
 
 def strip_passage_numbers(text: str) -> str:
@@ -156,6 +184,9 @@ def node_content(tree_id: str, node_id: str):
         raise HTTPException(404, "node not found")
     content = database.get_node_content(tree_id, node_id)
     if content is None:
+        background.claim(tree_id, node_id)  # wait if the background is writing it now
+        content = database.get_node_content(tree_id, node_id)
+    if content is None:
         try:
             dag_generate.generate_node_content(tree_id, node_id)
         except httpx.ConnectError:
@@ -167,10 +198,269 @@ def node_content(tree_id: str, node_id: str):
         content = database.get_node_content(tree_id, node_id)
     return with_sources(content)
 
+
+def target_difficulty(mastery: float) -> str:
+    # Bands from adaptive-knowledge-graph (student/models.py, policy band-v1)
+    if mastery < 0.4:
+        return "easy"
+    if mastery <= 0.7:
+        return "medium"
+    return "hard"
+
+
+PASS_SCORE = 0.75      # below this, a required review node is added before the next node
+MAX_ADDED_DEPTH = 2    # quiz-added nodes can themselves add nodes, this many levels deep
+MAX_OPTIONAL = 3       # optional branches added per quiz
+DUPLICATE_SIMILARITY = 0.85  # an optional branch this similar to an unfinished node is skipped
+
+
+def difficulty_mix(n: int) -> dict[str, int]:
+    """Split n questions into easy/medium/hard as evenly as possible (5 -> 2/2/1)."""
+    base, extra = divmod(n, 3)
+    return {"easy": base + (extra >= 1), "medium": base + (extra >= 2), "hard": base}
+
+
+def quiz_passages(tree_id: str, node) -> list[dict]:
+    """The node's own passages (the ones its study page uses), rotated between quizzes
+    so retakes see different text first."""
+    content = database.get_node_content(tree_id, node.id)
+    if content and content["retrieved"]:
+        by_id = database.get_chunks_by_ids(content["retrieved"])
+        chunks = [{"id": i, **by_id[i]} for i in content["retrieved"] if i in by_id]
+    else:
+        chunks = database.search_chunks(tree_id, embed([f"{node.title}. {node.description}"])[0], k=6)
+    if len(chunks) > 4:
+        start = database.count_quizzes(tree_id, node.id) % len(chunks)
+        chunks = (chunks[start:] + chunks[:start])[:4]
+    return chunks
+
+
+@app.post("/trees/{tree_id}/nodes/{node_id}/quiz")
+def new_quiz(tree_id: str, node_id: str, num_questions: int = 5):
+    """A quiz of 3-6 questions with an even mix of easy, medium and hard."""
+    dag = get_tree(tree_id)
+    node = next((n for n in dag.nodes if n.id == node_id), None)
+    if node is None:
+        raise HTTPException(404, "node not found")
+    status = compute_status(dag, database.get_mastered(tree_id))[node_id]
+    if status != "unlocked":
+        raise HTTPException(409, f"node is {status}")
+    count = max(3, min(num_questions, 6))
+    quiz = database.take_prepared_quiz(tree_id, node_id, count)
+    if quiz is None:
+        background.claim(tree_id, node_id)  # wait if the background is writing it now
+        quiz = database.take_prepared_quiz(tree_id, node_id, count)
+    if quiz is None:
+        try:
+            questions = build_quiz(tree_id, node, count)
+        except httpx.ConnectError:
+            raise HTTPException(503, "Can't reach Ollama. Is it running?")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, "Ollama took too long to answer.")
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        quiz_id, ids = database.create_quiz(tree_id, node_id, questions)
+        quiz = {"id": quiz_id, "questions": [{"id": i, **q} for i, q in zip(ids, questions)]}
+    return {
+        "quiz_id": quiz["id"],
+        "node_id": node_id,
+        # correct answers stay on the server
+        "questions": [{"id": q["id"], "text": q["text"], "options": q["options"],
+                       "difficulty": q["difficulty"]}
+                      for q in quiz["questions"]],
+    }
+
+
+def build_quiz(tree_id: str, node, count: int) -> list[dict]:
+    """Write `count` questions for a node (easy/medium/hard mix). Raises httpx errors
+    or ValueError."""
+    quiz = get_quiz_generator(tree_id).generate_from_topic(
+        f"{node.title}. {node.description}", count,
+        passages=quiz_passages(tree_id, node),
+        avoid=database.get_previous_questions(tree_id, node.id),
+        difficulty_counts=difficulty_mix(count))
+    return [q.model_dump() for q in quiz.questions[:count]]  # the model may write extra
+
+
+DEFAULT_QUESTIONS = 5  # size of quizzes prepared in the background
+
+
+def prepare_node(tree_id: str, node_id: str) -> None:
+    """Background job: write a node's study page, then a quiz to hand out later."""
+    dag = database.get_dag(tree_id)
+    node = next((n for n in dag.nodes if n.id == node_id), None) if dag else None
+    if node is None or node.kind == "optional":
+        return
+    if compute_status(dag, database.get_mastered(tree_id))[node_id] != "unlocked":
+        return
+    if database.get_node_content(tree_id, node_id) is None:
+        dag_generate.generate_node_content(tree_id, node_id)
+    if not database.has_prepared_quiz(tree_id, node_id):
+        questions = build_quiz(tree_id, node, DEFAULT_QUESTIONS)
+        database.create_quiz(tree_id, node_id, questions, prepared=True)
+
+
+def queue_unlocked(tree_id: str) -> None:
+    """Queue background preparation for unlocked core/required nodes that aren't ready.
+    Optional nodes are prepared only when someone opens them."""
+    dag = database.get_dag(tree_id)
+    if dag is None:
+        return
+    status = compute_status(dag, database.get_mastered(tree_id))
+    for n in dag.nodes:
+        if (status[n.id] == "unlocked" and n.kind != "optional"
+                and (database.get_node_content(tree_id, n.id) is None
+                     or not database.has_prepared_quiz(tree_id, n.id))):
+            background.enqueue(tree_id, n.id)
+
+
+class SubmitRequest(BaseModel):
+    answers: dict[int, str]  # question id -> chosen option id
+
+
+def unique_id(title: str, taken: set[str]) -> str:
+    base = dag_generate.slug(title) or "concept"
+    nid, i = base, 2
+    while nid in taken:
+        nid, i = f"{base}_{i}", i + 1
+    taken.add(nid)
+    return nid
+
+
+def add_gap_nodes(tree_id: str, dag, node, missed: list[dict], required: bool) -> list[dict]:
+    """Generate and insert nodes for what was missed. Returns [{id, title, kind}]."""
+    drafts = dag_generate.generate_gap_nodes(tree_id, node, missed, required, MAX_OPTIONAL)
+    if not required:
+        # skip branches that repeat a node the learner hasn't finished yet
+        finished = database.get_mastered(tree_id)
+        pending = [n for n in dag.nodes if n.id not in finished and n.id != node.id]
+        if pending:
+            vecs = np.asarray(embed([f"{d['title']}. {d['description']}" for d in drafts]
+                                    + [f"{n.title}. {n.description}" for n in pending]))
+            vecs /= np.linalg.norm(vecs, axis=1, keepdims=True)
+            sims = vecs[:len(drafts)] @ vecs[len(drafts):].T
+            drafts = [d for d, row in zip(drafts, sims) if row.max() < DUPLICATE_SIMILARITY]
+
+    taken = {n.id for n in dag.nodes}
+    kind = "required" if required else "optional"
+    new_nodes = [Node(id=unique_id(d["title"], taken), title=d["title"],
+                      description=d["description"], objectives=d["objectives"],
+                      kind=kind, origin=node.id, depth=node.depth + 1) for d in drafts]
+    edges = [(node.id, n.id) for n in new_nodes]
+    if required:
+        # put the review node between this node and everything that came after it
+        by_id = {n.id: n for n in dag.nodes}
+        for e in dag.edges:
+            if e.parent_id == node.id and by_id[e.child_id].kind != "optional":
+                edges.append((new_nodes[0].id, e.child_id))
+    database.add_nodes(tree_id, new_nodes, edges)
+    return [{"id": n.id, "title": n.title, "kind": n.kind} for n in new_nodes]
+
+
+@app.post("/quizzes/{quiz_id}/submit")
+def submit_quiz(quiz_id: int, req: SubmitRequest):
+    """Grade a whole quiz. The node counts as mastered (finished) whatever the score.
+    Below PASS_SCORE a required review node is added before the next node; otherwise
+    each missed idea gets an optional branch."""
+    quiz = database.get_quiz(quiz_id)
+    if quiz is None:
+        raise HTTPException(404, "quiz not found")
+    if quiz["submitted"]:
+        raise HTTPException(409, "quiz already submitted")
+    tree_id, node_id = quiz["tree_id"], quiz["node_id"]
+    dag = get_tree(tree_id)
+    node = next((n for n in dag.nodes if n.id == node_id), None)
+    if node is None:
+        raise HTTPException(404, "node no longer exists")
+    if compute_status(dag, database.get_mastered(tree_id))[node_id] != "unlocked":
+        raise HTTPException(409, "node is not open for a quiz")
+    missing = [q["id"] for q in quiz["questions"] if q["id"] not in req.answers]
+    if missing:
+        raise HTTPException(422, f"answer every question (missing {missing})")
+
+    results, missed, graded = {}, [], []
+    for q in quiz["questions"]:
+        chosen = req.answers[q["id"]]
+        ok = chosen == q["correct_option_id"]
+        results[q["id"]] = ok
+        text_of = {o["id"]: o["text"] for o in q["options"]}
+        graded.append({"id": q["id"], "correct": ok, "chosen": chosen,
+                       "correct_option_id": q["correct_option_id"],
+                       "explanation": q["explanation"], "concept": q["concept"]})
+        if not ok:
+            missed.append({"question": q["text"], "concept": q["concept"],
+                           "chosen": text_of.get(chosen, chosen),
+                           "correct": text_of.get(q["correct_option_id"], "")})
+
+    score = database.submit_quiz(quiz_id, tree_id, node_id, results, req.answers)
+
+    # Mastery (BKT) is still recorded, but no longer decides anything.
+    history = database.get_attempts(tree_id, node_id)
+    mastery = knowledge_tracer.compute_mastery_from_sequence(history, "multiple_choice")
+    database.set_mastery(tree_id, node_id, mastery)
+
+    added, added_error = [], None
+    required = score < PASS_SCORE
+    if missed and node.depth < MAX_ADDED_DEPTH:
+        try:
+            added = add_gap_nodes(tree_id, dag, node, missed, required)
+            database.set_quiz_added_nodes(quiz_id, [a["id"] for a in added])
+        except httpx.ConnectError:
+            added_error = "Can't reach Ollama, so no follow-up concepts were added."
+        except httpx.ReadTimeout:
+            added_error = "Ollama took too long, so no follow-up concepts were added."
+        except ValueError as e:
+            added_error = f"No follow-up concepts were added: {e}"
+
+    queue_unlocked(tree_id)
+    return {
+        "score": round(score, 3),
+        "pass_score": PASS_SCORE,
+        "passed": not required,
+        "mastery": round(mastery, 3),
+        "results": graded,
+        "added": added,
+        "added_error": added_error,
+        "tree": read_tree(tree_id),
+    }
+
+
+@app.get("/trees/{tree_id}/nodes/{node_id}/quiz/results")
+def quiz_results(tree_id: str, node_id: str):
+    """The latest submitted quiz for a node: score, every answer, and nodes it added."""
+    dag = get_tree(tree_id)
+    quiz = database.get_latest_quiz_results(tree_id, node_id)
+    if quiz is None:
+        raise HTTPException(404, "no quiz taken for this node")
+    titles = {n.id: (n.title, n.kind) for n in dag.nodes}
+    return {
+        "score": quiz["score"],
+        "results": [{"id": q["id"], "text": q["text"], "options": q["options"],
+                     "correct": q["correct"], "chosen": q["chosen"],
+                     "correct_option_id": q["correct_option_id"],
+                     "explanation": q["explanation"], "concept": q["concept"]}
+                    for q in quiz["questions"]],
+        "added": [{"id": i, "title": titles[i][0], "kind": titles[i][1]}
+                  for i in quiz["added_nodes"] if i in titles],
+    }
+
+
+@app.get("/trees/{tree_id}/quizzes")
+def quiz_history(tree_id: str):
+    """Submitted quizzes for this tree, newest first, with the ideas that were missed."""
+    get_tree(tree_id)
+    return database.get_quiz_history(tree_id)
+
+
 @app.delete("/trees/{tree_id}")
 def delete_tree(tree_id: str):
     database.delete_tree(tree_id)
     return {"deleted": tree_id}
+
+# Background preparation: start the worker and catch up on anything not ready yet.
+background.start(prepare_node)
+for _t in database.list_trees():
+    queue_unlocked(_t["id"])
 
 # this line messes with API stuff. KEEP LAST!!!!
 app.mount("/viewer", StaticFiles(directory="static", html=True), name="viewer")

@@ -1,5 +1,5 @@
 from database import add_chunks
-from ollama import embed
+from ollama_client import embed
 
 
 def chunk_text(text: str, max_chars: int = 800) -> list[str]:
