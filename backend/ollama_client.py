@@ -14,7 +14,10 @@ def embed(texts: list[str]) -> list[list[float]]:
 
 CHAT_MODEL = "qwen3.5:4b"
 
-def chat_json(prompt: str, schema: dict) -> str:
+def chat_json(prompt: str, schema: dict | str, temperature: float | None = None) -> str:
+    options = {"num_ctx": 8192}
+    if temperature is not None:
+        options["temperature"] = temperature
     r = httpx.post(
         f"{OLLAMA_URL}/api/chat",
         json={
@@ -23,7 +26,7 @@ def chat_json(prompt: str, schema: dict) -> str:
             "format": schema,
             "stream": False,
             "think": False,
-            "options": {"num_ctx": 8192},
+            "options": options,
         },
         timeout=600,
     )

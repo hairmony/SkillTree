@@ -7,6 +7,10 @@ class Node(BaseModel):
     title: str
     description: str
     objectives: list[str] = []
+    # "core" = from tree generation; "required" / "optional" = added after a quiz
+    kind: str = "core"
+    origin: str | None = None  # the node whose quiz added this one
+    depth: int = 0             # how many quiz-added levels below a core node
 
 
 class Edge(BaseModel):
@@ -58,6 +62,9 @@ def parents_of(dag: DAG) -> dict[str, list[str]]:
 
 
 def compute_status(dag: DAG, mastered: set[str]) -> dict[str, str]:
+    """locked / unlocked / mastered. "mastered" means the node is finished (its quiz was
+    taken, whatever the score, or it was skipped). Optional nodes never have children,
+    so they never block anything."""
     parents = parents_of(dag)
     status = {}
     for n in dag.nodes:
