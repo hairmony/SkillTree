@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <title>SkillTree viewer</title>
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f7f7f8; color: #222; }
+    button, input, select, textarea { font-size: inherit; }
+    body { font-size: 14px; font-family: sans-serif; margin: 0; background: #f7f7f8; color: #222; }
     header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
              padding: 12px 20px; background: #fff; border-bottom: 1px solid #ddd; }
     main { display: flex; gap: 16px; padding: 16px 20px; align-items: flex-start; }
@@ -15,9 +16,9 @@
             padding: 10px 12px; margin-bottom: 10px; }
     .card.locked { opacity: 0.55; }
     .card.mastered { border-color: #2b8a3e; }
-    .card p { margin: 6px 0; font-size: 14px; }
-    .card ul { margin: 4px 0 8px; padding-left: 20px; font-size: 13px; }
-    .tag { font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+    .card p { margin: 6px 0; }
+    .card ul { margin: 4px 0 8px; padding-left: 20px; }
+    .tag { padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
     .tag.locked { background: #eee; }
     .tag.unlocked { background: #fff3bf; }
     .tag.mastered { background: #b2f2bb; }
@@ -27,19 +28,25 @@
     .form input, .form textarea { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 6px; }
     .form textarea { height: 160px; }
     button { padding: 6px 12px; cursor: pointer; }
-    #msg { margin-left: 10px; font-size: 14px; }
-    .detail { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; font-size: 14px; }
-    .detail h4 { margin: 10px 0 4px; font-size: 13px; text-transform: uppercase; color: #666; }
-    .detail .note { font-size: 12px; color: #888; }
-    .detail blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ddd; color: #555; font-size: 13px; }
-    .pct { font-size: 12px; color: #666; margin-left: 6px; }
-    .quiz { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; font-size: 14px; }
+    #msg { margin-left: 10px; }
+    .detail { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
+    .detail h4 { margin: 10px 0 4px; text-transform: uppercase; color: #666; }
+    .detail .note { color: #888; }
+    .detail blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ddd; color: #555; }
+    .pct { color: #666; margin-left: 6px; }
+    .quiz { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
     .quiz .q { margin-bottom: 12px; }
     .quiz .opt { display: block; width: 100%; text-align: left; margin: 4px 0; background: #fff;
                  border: 1px solid #ccc; border-radius: 6px; }
     .quiz .opt.right { background: #b2f2bb; border-color: #2b8a3e; }
     .quiz .opt.wrong { background: #ffc9c9; border-color: #c92a2a; }
-    .quiz .result { font-size: 13px; color: #444; margin: 4px 0; }
+    .quiz .result { color: #444; margin: 4px 0; }
+    .quizopts { margin: 6px 0; }
+    .quizopts input { width: 3em; }
+    .quiz .opt.picked { background: #d0ebff; border-color: #1c7ed6; }
+    .note { color: #888; }
+    .tag.kind-required { background: #ffc9c9; }
+    .tag.kind-optional { background: #e5dbff; }
   </style>
 </head>
 <body>
@@ -53,15 +60,13 @@
   <details>
     <summary>Create a new tree from text</summary>
     <div class="form">
-      <label>Tree id (letters, numbers, dashes)</label>
-      <input id="newId" placeholder="e.g. discrete-math">
       <label>Topic</label>
       <input id="newTopic" placeholder="e.g. Introduction to Discrete Mathematics">
-      <label>Source (a name, or the link to the page you copied from)</label>
+      <label>Source (link)</label>
       <input id="newSource" placeholder="e.g. https://philsci-archive.pitt.edu/id/eprint/16561/1/Discrete%20and%20Continuous.pdf">
-      <label>Reference text (paragraphs separated by a blank line)</label>
+      <label>Reference text (paragraphs separated by blank line)</label>
       <textarea id="newText"></textarea>
-      <button id="gen">Generate graph</button>
+      <button id="gen">Generate Skill Tree</button>
       <span id="msg"></span>
     </div>
   </details>
@@ -115,11 +120,16 @@
       let src = "graph TD\n";
       for (const n of data.nodes)
         src += `  n_${n.id}["${n.title.replace(/"/g, "'")}"]:::${n.status}\n`;
+      const kindOf = Object.fromEntries(data.nodes.map(n => [n.id, n.kind]));
       for (const e of data.edges)
-        src += `  n_${e.parent_id} --> n_${e.child_id}\n`;
+        src += `  n_${e.parent_id} ${kindOf[e.child_id] === "optional" ? "-.->" : "-->"} n_${e.child_id}\n`;
       src += "  classDef locked fill:#eee,stroke:#bbb,color:#999\n";
       src += "  classDef unlocked fill:#fff3bf,stroke:#f08c00\n";
       src += "  classDef mastered fill:#b2f2bb,stroke:#2b8a3e\n";
+      src += "  classDef optional stroke-dasharray:5 5\n";
+      src += "  classDef required stroke:#c92a2a,stroke-width:3px\n";
+      for (const n of data.nodes)
+        if (n.kind === "optional" || n.kind === "required") src += `  class n_${n.id} ${n.kind}\n`;
 
       const { svg } = await mermaid.render("g" + (counter++), src);
       document.getElementById("graph").innerHTML = svg;
@@ -129,14 +139,23 @@
       document.getElementById("side").innerHTML = nodes.map(n => `
         <div class="card ${n.status}">
           <b>${esc(n.title)}</b><span class="tag ${n.status}">${n.status}</span>
-          <span class="pct" id="p_${esc(n.id)}">${pct(n.mastery)} mastery</span>
+          ${n.kind === "required" ? `<span class="tag kind-required">review: required</span>` : ""}
+          ${n.kind === "optional" ? `<span class="tag kind-optional">optional</span>` : ""}
+          <span class="pct">${pct(n.mastery)} confidence</span>
           <p>${esc(n.description)}</p>
           <ul>${n.objectives.map(o => `<li>${esc(o)}</li>`).join("")}</ul>
-          ${n.status === "unlocked"
-            ? `<button class="master" data-id="${esc(n.id)}">Mark mastered</button>` : ""}
-          ${n.status !== "locked"
-            ? `<button class="quizbtn" data-id="${esc(n.id)}">Take quiz</button>` : ""}
-          <button class="more" data-id="${esc(n.id)}">Show details</button>
+          <div>
+            ${n.status === "unlocked" ? `
+              <button class="master" data-id="${esc(n.id)}">Mark mastered</button>
+              <button class="quizbtn" data-id="${esc(n.id)}">Take quiz</button>` : ""}
+            ${n.status === "mastered"
+              ? `<button class="resultsbtn" data-id="${esc(n.id)}">Quiz results</button>` : ""}
+            <button class="more" data-id="${esc(n.id)}">Show details</button>
+          </div>
+          ${n.status === "unlocked" ? `
+            <div class="quizopts">
+              Questions <input type="number" id="qn_${esc(n.id)}" min="3" max="6" value="5">
+            </div>` : ""}
           <div class="quiz" id="q_${esc(n.id)}" hidden></div>
           <div class="detail" id="d_${esc(n.id)}" hidden></div>
         </div>`).join("");
@@ -144,64 +163,116 @@
 
     const pct = m => Math.round((m ?? 0) * 100) + "%";
 
-    // Latest tree returned by an answer; the page re-renders with it when the quiz is finished,
-    // so the quiz stays on screen while it is being answered.
+    // Tree returned by a submitted quiz; the page re-renders with it on "Continue",
+    // so the results stay on screen until then.
     let pendingTree = null;
 
     async function startQuiz(btn) {
-      const box = document.getElementById("q_" + btn.dataset.id);
+      const id = btn.dataset.id;
+      const box = document.getElementById("q_" + id);
       box.hidden = false;
       btn.disabled = true;
       box.innerHTML = "<p class='note'>Local model is writing a quiz. This could take a minute...</p>";
       try {
-        const quiz = await post(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(btn.dataset.id)}/quiz`);
-        box.innerHTML = `<p class="result">Difficulty: <b>${esc(quiz.difficulty)}</b>
-            (current mastery ${pct(quiz.mastery)})</p>` +
-          quiz.questions.map((q, i) => `
+        const count = Math.min(6, Math.max(3, parseInt(document.getElementById("qn_" + id).value) || 5));
+        const quiz = await post(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(id)}/quiz` +
+          `?num_questions=${count}`);
+        box.dataset.quiz = quiz.quiz_id;
+        box.innerHTML = quiz.questions.map((q, i) => `
             <div class="q" data-qid="${q.id}">
-              <b>${i + 1}. ${esc(q.text)}</b>
-              ${q.options.map(o => `<button class="opt" data-qid="${q.id}" data-opt="${esc(o.id)}">
+              <b>${i + 1}. ${esc(q.text)}</b> <span class="note">(${esc(q.difficulty)})</span>
+              ${q.options.map(o => `<button class="opt" data-opt="${esc(o.id)}">
                 ${esc(o.id)}) ${esc(o.text)}</button>`).join("")}
               <div class="result" hidden></div>
             </div>`).join("") +
-          `<button class="finish" hidden>Finish quiz</button>`;
+          `<button class="submit">Submit quiz</button> <span class="result submitmsg"></span>`;
       } catch (err) {
         box.innerHTML = `<p class='note'>Failed: ${esc(err.message)}</p>`;
         btn.disabled = false;
       }
     }
 
-    async function answer(opt) {
+    function pick(opt) {
       const q = opt.closest(".q");
-      const buttons = q.querySelectorAll(".opt");
-      buttons.forEach(b => b.disabled = true);
-      const out = q.querySelector(".result");
+      if (q.dataset.locked) return;
+      q.querySelectorAll(".opt").forEach(b => b.classList.toggle("picked", b === opt));
+      q.dataset.choice = opt.dataset.opt;
+    }
+
+    async function submitQuiz(btn) {
+      const box = btn.closest(".quiz");
+      const qs = [...box.querySelectorAll(".q")];
+      const msg = box.querySelector(".submitmsg");
+      if (qs.some(q => !q.dataset.choice)) { msg.textContent = "Please answer every question."; return; }
+      btn.disabled = true;
+      msg.textContent = "Grading...";
       try {
-        const r = await post(`/quiz/${opt.dataset.qid}/answer`, { option_id: opt.dataset.opt });
-        buttons.forEach(b => {
-          if (b.dataset.opt === r.correct_option_id) b.classList.add("right");
-          else if (b === opt) b.classList.add("wrong");
-        });
-        out.innerHTML = `${r.correct ? "Correct." : "Wrong."} ${esc(r.explanation)}
-          <br>Mastery now <b>${pct(r.mastery)}</b>`;
+        const answers = Object.fromEntries(qs.map(q => [q.dataset.qid, q.dataset.choice]));
+        const r = await post(`/quizzes/${box.dataset.quiz}/submit`, { answers });
+        for (const res of r.results) {
+          const q = box.querySelector(`.q[data-qid="${res.id}"]`);
+          q.dataset.locked = "1";
+          q.querySelectorAll(".opt").forEach(b => {
+            b.disabled = true;
+            if (b.dataset.opt === res.correct_option_id) b.classList.add("right");
+            else if (b.dataset.opt === res.chosen) b.classList.add("wrong");
+          });
+          const out = q.querySelector(".result");
+          out.innerHTML = `${res.correct ? "Correct." : "Wrong."} ${esc(res.explanation)}` +
+            (res.concept ? `<br><span class="note">Tests: ${esc(res.concept)}</span>` : "");
+          out.hidden = false;
+        }
+        const added = r.added.length
+          ? `<br>${r.passed ? "New optional concepts have been added to your tree!" :
+              `You scored below ${Math.round(r.pass_score * 100)}%. New required concepts have been added to your tree!`}
+             <ul>${r.added.map(a => `<li>${esc(a.title)} (${esc(a.kind)})</li>`).join("")}</ul>`
+          : (r.added_error ? `<br>${esc(r.added_error)}` : "");
+        btn.remove();
+        msg.innerHTML = `Score: <b>${Math.round(r.score * 100)}%</b>
+          (${r.results.filter(x => x.correct).length}/${r.results.length}).
+          Confidence ${pct(r.mastery)}.${added}
+          <br><button class="finish">Continue</button>`;
         pendingTree = r.tree;
-        const nodeId = opt.closest(".quiz").id.slice(2);
-        document.getElementById("p_" + nodeId).textContent = pct(r.mastery) + " mastery";
       } catch (err) {
-        out.innerHTML = `Failed: ${esc(err.message)}`;
-        buttons.forEach(b => b.disabled = false);
+        msg.textContent = "Failed: " + err.message;
+        btn.disabled = false;
       }
-      out.hidden = false;
-      const box = opt.closest(".quiz");
-      if ([...box.querySelectorAll(".q")].every(x => !x.querySelector(".result").hidden))
-        box.querySelector(".finish").hidden = false;
+    }
+
+    async function showResults(btn) {
+      const box = document.getElementById("q_" + btn.dataset.id);
+      if (!box.hidden) { box.hidden = true; btn.textContent = "Quiz results"; return; }
+      box.hidden = false;
+      btn.textContent = "Hide quiz results";
+      try {
+        const r = await api(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(btn.dataset.id)}/quiz/results`);
+        const right = r.results.filter(x => x.correct).length;
+        box.innerHTML = `<p>Score: <b>${Math.round(r.score * 100)}%</b> (${right}/${r.results.length})</p>` +
+          r.results.map((q, i) => `
+            <div class="q">
+              <b>${i + 1}. ${esc(q.text)}</b>
+              ${q.options.map(o => `<button class="opt ${o.id === q.correct_option_id ? "right" :
+                  o.id === q.chosen ? "wrong" : ""}" disabled>${esc(o.id)}) ${esc(o.text)}</button>`).join("")}
+              <div class="result">${q.correct ? "Correct." : "Wrong."} ${esc(q.explanation)}</div>
+            </div>`).join("") +
+          (r.added.length ? `<p>Added after this quiz:</p>
+             <ul>${r.added.map(a => `<li>${esc(a.title)} (${esc(a.kind)})</li>`).join("")}</ul>` : "");
+      } catch (err) {
+        box.innerHTML = err.message.includes("no quiz")
+          ? "<p class='note'>No quiz was taken for this concept.</p>"
+          : `<p class='note'>Failed: ${esc(err.message)}</p>`;
+      }
     }
 
     document.getElementById("side").addEventListener("click", async e => {
+      const resBtn = e.target.closest(".resultsbtn");
+      if (resBtn) return showResults(resBtn);
       const quizBtn = e.target.closest(".quizbtn");
       if (quizBtn) return startQuiz(quizBtn);
       const opt = e.target.closest(".opt");
-      if (opt) return answer(opt);
+      if (opt) return pick(opt);
+      const sub = e.target.closest(".submit");
+      if (sub) return submitQuiz(sub);
       if (e.target.closest(".finish")) {
         const tree = pendingTree;
         pendingTree = null;
@@ -266,19 +337,17 @@
     document.getElementById("trees").onchange = e => { TREE = e.target.value; load(); };
 
     document.getElementById("gen").onclick = async () => {
-      const id = document.getElementById("newId").value.trim().toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       const topic = document.getElementById("newTopic").value.trim();
       const text = document.getElementById("newText").value.trim();
       const msg = document.getElementById("msg");
       const btn = document.getElementById("gen");
-      if (!id || !topic || !text) { msg.textContent = "Please fill in all fields."; return; }
+      if (!topic || !text) { msg.textContent = "Please fill in the topic and reference text."; return; }
 
       btn.disabled = true;
       msg.textContent = "Growing your skill tree... this could take a few minutes.";
       try {
         const source = document.getElementById("newSource").value.trim() || "pasted text";
-        await post("/ingest/text", { tree_id: id, source, text });
+        const { tree_id: id } = await post("/ingest/text", { topic, source, text });
         const data = await post("/trees/generate", { tree_id: id, topic });
         TREE = id;
         await loadTrees();

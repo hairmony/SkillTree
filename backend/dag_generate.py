@@ -91,7 +91,7 @@ Summary: {summary}
 
 The learner should be able to study this concept directly from your page, so cover it completely. Use ONLY the numbered passages below for facts. Write:
 - details: a complete explanation for a beginner. Use as many paragraphs as the passages need to cover the concept properly: a simple concept may need only two, a rich one six or more. Cover definitions, how it works, key terms, and common mistakes where the passages mention them. Plain text only, no markdown symbols, with a blank line between paragraphs.
-- examples: practice questions or problems, each one to three sentences. Include 2 or 3 only when a learner could actually try a question or problem for this concept, such as a calculation, a procedure, or an exercise. If the concept does not work that way, use an empty list. Do not write extra illustrations or repeat the explanation.
+- examples: 2 or 3 concrete, worked examples that show the concept in use, each two to four sentences. Each example states a specific case and walks through it to the result, for example a calculation shown step by step, a procedure applied to real values, or a specific instance of the idea explained. Write them as statements, never as questions or exercises for the learner, and always include the answer or outcome. Do not repeat the explanation in general terms.
 - citations: the numbers of the passages you used for facts, for example [1, 3]
 
 Do not invent facts the passages don't support. Only provide information that the source agrees with.
@@ -143,3 +143,78 @@ def generate_node_content(tree_id: str, node_id: str, attempts: int = 2) -> None
         [chunks[n - 1]["id"] for n in valid],
         [c["id"] for c in chunks],
     )
+
+class GapNode(BaseModel):
+    title: str
+    description: str
+    objectives: list[str]
+    covers: list[int]  # numbers of the missed questions this concept addresses
+
+
+class GapDraft(BaseModel):
+    nodes: list[GapNode]
+
+
+def build_gap_prompt(course: str, node_title: str, missed: str, passages: str,
+                     required: bool, max_nodes: int, error: str | None = None) -> str:
+    if required:
+        task = ("Write exactly 1 review concept that covers ALL the missed ideas below, so "
+                "the learner can relearn them before moving on.")
+    else:
+        task = (f"Write 1 to {max_nodes} short follow-up concepts, one per missed idea "
+                "(combine missed questions that test the same idea).")
+    prompt = f"""A learner in a course on {course} just took a quiz on the concept "{node_title}" and got these questions wrong:
+
+{missed}
+
+{task} For each concept give:
+- title: a short name for the idea (not "Review of ..." and not the same as "{node_title}")
+- description: one or two sentences on what the learner needs to understand
+- objectives: 1 to 3 things the learner should be able to do afterwards
+- covers: the numbers of the missed questions it addresses, for example [1, 3]
+
+Use ONLY ideas the reference text below supports.
+
+Reference text:
+{passages}
+"""
+    if error:
+        prompt += f"\nYour previous answer was rejected: {error}\nFix this and try again.\n"
+    return prompt
+
+
+def generate_gap_nodes(tree_id: str, node, missed: list[dict], required: bool,
+                       max_nodes: int = 3, attempts: int = 2) -> list[dict]:
+    """Concepts that cover what the learner missed in a quiz on `node`.
+
+    missed: [{"question", "concept", "chosen", "correct"}]. Returns
+    [{"title", "description", "objectives"}] (exactly 1 when required).
+    """
+    query = "; ".join(m["concept"] or m["question"] for m in missed)
+    chunks = database.search_chunks(tree_id, embed([query])[0], k=5)
+    if not chunks:
+        raise ValueError("No reference text found for this tree.")
+    passages = "\n\n".join(c["text"] for c in chunks)
+    missed_text = "\n".join(
+        f"{i}. {m['question']}\n   Idea tested: {m['concept'] or 'not given'}\n"
+        f"   Learner answered: {m['chosen']}\n   Correct answer: {m['correct']}"
+        for i, m in enumerate(missed, 1))
+    course = database.get_tree_title(tree_id) or tree_id
+
+    error = None
+    for _ in range(attempts):
+        raw = chat_json(build_gap_prompt(course, node.title, missed_text, passages,
+                                         required, max_nodes, error),
+                        GapDraft.model_json_schema())
+        try:
+            draft = GapDraft.model_validate_json(raw)
+        except ValueError as e:
+            error = str(e)[:300]
+            continue
+        nodes = [{"title": g.title.strip(), "description": g.description.strip(),
+                  "objectives": [o.strip() for o in g.objectives if o.strip()]}
+                 for g in draft.nodes if g.title.strip() and g.description.strip()]
+        if nodes:
+            return nodes[:1] if required else nodes[:max_nodes]
+        error = "Give at least one concept with a title and description."
+    raise ValueError(f"Could not write follow-up concepts: {error}")

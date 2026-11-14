@@ -44,6 +44,7 @@ class QuizQuestion(BaseModel):
     related_concept: str | None = None
     difficulty: Literal["easy", "medium", "hard"] | None = None
     difficulty_score: float | None = None  # 0.0-1.0 heuristic difficulty
+    concept: str | None = None  # SkillTree: the specific idea this question tests
 
 
 class Quiz(BaseModel):
@@ -71,6 +72,9 @@ class QuizGenerator:
         topic: str,
         num_questions: int = 3,
         target_difficulty: Literal["easy", "medium", "hard"] | None = None,
+        passages: list[dict] | None = None,
+        avoid: list[str] | None = None,
+        difficulty_counts: dict[str, int] | None = None,
     ) -> Quiz:
         """
         Generate a quiz based on a topic string.
@@ -94,22 +98,34 @@ class QuizGenerator:
 
         # 1. Retrieve content. A bibliography chunk matches a topic through its book titles,
         # so retrieve a few candidates and skip reference sections.
-        chunks = database.search_chunks(self.subject_id, embed([topic])[0], k=5)
+        # SkillTree: the caller passes the concept's own passages when it has them.
+        chunks = passages or database.search_chunks(self.subject_id, embed([topic])[0], k=5)
         if not chunks:
             logger.warning(f"No content found for topic: {topic}")
             raise ContentNotFoundError(f"No content found for {topic}")
 
-        # 2. Use the most relevant chunk for the quiz base
-        # simpler MVP: generate questions from the top chunk
-        base_chunk = chunks[0]
-        context_text = base_chunk["text"]
-        chunk_id = str(base_chunk.get("id"))
+        # 2. SkillTree: use all the passages given (the original used only the top chunk,
+        # which made every quiz for a concept identical)
+        context_text = "\n\n".join(c["text"] for c in chunks)
+        chunk_id = str(chunks[0].get("id"))
 
         # 3. Build system prompt based on whether we're targeting a specific difficulty
         system_prompt = self._build_system_prompt(target_difficulty)
         user_prompt = self._build_user_prompt(num_questions, context_text, target_difficulty)
+        # SkillTree additions: stay on this concept, exact difficulty mix, no repeats
+        user_prompt += (
+            f"\n\nEvery question must test this concept: {topic}\n"
+            "Do not ask about other concepts, even if the text mentions them."
+        )
+        if difficulty_counts:
+            mix = ", ".join(f"exactly {n} {d}" for d, n in difficulty_counts.items() if n)
+            user_prompt += f"\nWrite {num_questions} questions in total: {mix}."
+        if avoid:
+            user_prompt += ("\nDo not repeat or reword any of these earlier questions:\n"
+                            + "\n".join(f"- {q}" for q in avoid))
 
-        response_text = chat_json(system_prompt + "\n\n" + user_prompt, "json")
+        response_text = chat_json(system_prompt + "\n\n" + user_prompt, "json",
+                                  temperature=0.8)
 
         try:
             questions = self._parse_questions(response_text, chunk_id=chunk_id, topic=topic)
@@ -181,6 +197,7 @@ class QuizGenerator:
             related_concept=topic,
             difficulty=difficulty,
             difficulty_score=difficulty_score,
+            concept=str(q_data.get("concept") or "").strip() or None,
         )
 
     def _build_system_prompt(
@@ -211,7 +228,8 @@ Return the output as a valid JSON object with the following structure:
       "correct_option_id": "b",
       "explanation": "Brief explanation of why B is correct, based on the text.",
       "difficulty": "medium",
-      "difficulty_score": 0.45
+      "difficulty_score": 0.45,
+      "concept": "Short phrase naming the specific idea this question tests"
     }
   ]
 }
