@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 import database
 from dag_structure import DAG
-from ollama import chat_json, embed
+from ollama_client import chat_json, embed
 
 
 class DraftNode(BaseModel):

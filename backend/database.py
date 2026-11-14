@@ -10,6 +10,10 @@ DB_PATH = "skilltree.db"
 
 USER_ID = 1  # local user -- no auth
 
+# user_progress.mastery is the BKT probability the learner knows the concept
+# (1.0 when marked mastered by hand). At or above this, the concept is mastered.
+MASTERY_THRESHOLD = 0.95
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trees (
     id TEXT PRIMARY KEY,
@@ -53,6 +57,25 @@ CREATE TABLE IF NOT EXISTS node_content (
     citations TEXT NOT NULL DEFAULT '[]',
     retrieved TEXT NOT NULL DEFAULT '[]',
     PRIMARY KEY (tree_id, node_id)
+);
+CREATE TABLE IF NOT EXISTS quiz_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tree_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,
+    correct_option_id TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    difficulty TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    tree_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    question_id INTEGER NOT NULL UNIQUE,
+    correct INTEGER NOT NULL,
+    answered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -117,6 +140,7 @@ def save_tree(tree_id: str, title: str, dag: DAG) -> None:
         )
         conn.execute("DELETE FROM nodes WHERE tree_id = ?", (tree_id,))
         conn.execute("DELETE FROM node_content WHERE tree_id = ?", (tree_id,))
+        conn.execute("DELETE FROM quiz_questions WHERE tree_id = ?", (tree_id,))
         conn.executemany(
             "INSERT INTO nodes (tree_id, id, title, description, objectives) "
             "VALUES (?, ?, ?, ?, ?)",
@@ -150,13 +174,27 @@ def get_dag(tree_id: str) -> DAG | None:
     })
 
 
-def get_mastered(tree_id: str) -> set[str]:
+def get_mastery(tree_id: str) -> dict[str, float]:
     with connect() as conn:
         rows = conn.execute(
-            "SELECT node_id FROM user_progress WHERE user_id = ? AND tree_id = ?",
+            "SELECT node_id, mastery FROM user_progress WHERE user_id = ? AND tree_id = ?",
             (USER_ID, tree_id),
         ).fetchall()
-    return {r[0] for r in rows}
+    return {n: m for n, m in rows}
+
+
+def get_mastered(tree_id: str) -> set[str]:
+    return {n for n, m in get_mastery(tree_id).items() if m >= MASTERY_THRESHOLD}
+
+
+def set_mastery(tree_id: str, node_id: str, mastery: float) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO user_progress (user_id, tree_id, node_id, mastery) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id, tree_id, node_id) DO UPDATE SET mastery = excluded.mastery",
+            (USER_ID, tree_id, node_id, mastery),
+        )
 
 
 def add_mastered(tree_id: str, node_id: str) -> None:
@@ -171,10 +209,11 @@ def add_mastered(tree_id: str, node_id: str) -> None:
 
 def reset_progress(tree_id: str) -> None:
     with connect() as conn:
-        conn.execute(
-            "DELETE FROM user_progress WHERE user_id = ? AND tree_id = ?",
-            (USER_ID, tree_id),
-        )
+        for table in ("user_progress", "quiz_attempts"):
+            conn.execute(
+                f"DELETE FROM {table} WHERE user_id = ? AND tree_id = ?",
+                (USER_ID, tree_id),
+            )
 
 def list_trees() -> list[dict]:
     with connect() as conn:
@@ -225,8 +264,59 @@ def get_chunks_by_ids(ids: list[int]) -> dict[int, dict]:
         ).fetchall()
     return {i: {"source": s, "text": t} for i, s, t in rows}
 
+def save_questions(tree_id: str, node_id: str, questions: list[dict]) -> list[int]:
+    ids = []
+    with connect() as conn:
+        for q in questions:
+            cur = conn.execute(
+                "INSERT INTO quiz_questions (tree_id, node_id, question, options, "
+                "correct_option_id, explanation, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (tree_id, node_id, q["text"], json.dumps(q["options"]),
+                 q["correct_option_id"], q["explanation"], q["difficulty"]),
+            )
+            ids.append(cur.lastrowid)
+    return ids
+
+
+def get_question(question_id: int) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT tree_id, node_id, question, options, correct_option_id, explanation, "
+            "difficulty, EXISTS(SELECT 1 FROM quiz_attempts a WHERE a.question_id = q.id) "
+            "FROM quiz_questions q WHERE id = ?",
+            (question_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    t, n, q, o, c, e, d, answered = row
+    return {"id": question_id, "tree_id": t, "node_id": n, "question": q,
+            "options": json.loads(o), "correct_option_id": c, "explanation": e,
+            "difficulty": d, "answered": bool(answered)}
+
+
+def add_attempt(tree_id: str, node_id: str, question_id: int, correct: bool) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO quiz_attempts (user_id, tree_id, node_id, question_id, correct) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (USER_ID, tree_id, node_id, question_id, int(correct)),
+        )
+
+
+def get_attempts(tree_id: str, node_id: str) -> list[bool]:
+    """This learner's answers for one concept, oldest first."""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT correct FROM quiz_attempts WHERE user_id = ? AND tree_id = ? "
+            "AND node_id = ? ORDER BY id",
+            (USER_ID, tree_id, node_id),
+        ).fetchall()
+    return [bool(r[0]) for r in rows]
+
+
 def delete_tree(tree_id: str) -> None:
     with connect() as conn:
-        for table in ("node_content", "user_progress", "chunks", "edges", "nodes"):
+        for table in ("node_content", "user_progress", "chunks", "edges", "nodes",
+                      "quiz_questions", "quiz_attempts"):
             conn.execute(f"DELETE FROM {table} WHERE tree_id = ?", (tree_id,))
         conn.execute("DELETE FROM trees WHERE id = ?", (tree_id,))

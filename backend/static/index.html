@@ -32,6 +32,14 @@
     .detail h4 { margin: 10px 0 4px; font-size: 13px; text-transform: uppercase; color: #666; }
     .detail .note { font-size: 12px; color: #888; }
     .detail blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ddd; color: #555; font-size: 13px; }
+    .pct { font-size: 12px; color: #666; margin-left: 6px; }
+    .quiz { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; font-size: 14px; }
+    .quiz .q { margin-bottom: 12px; }
+    .quiz .opt { display: block; width: 100%; text-align: left; margin: 4px 0; background: #fff;
+                 border: 1px solid #ccc; border-radius: 6px; }
+    .quiz .opt.right { background: #b2f2bb; border-color: #2b8a3e; }
+    .quiz .opt.wrong { background: #ffc9c9; border-color: #c92a2a; }
+    .quiz .result { font-size: 13px; color: #444; margin: 4px 0; }
   </style>
 </head>
 <body>
@@ -121,16 +129,84 @@
       document.getElementById("side").innerHTML = nodes.map(n => `
         <div class="card ${n.status}">
           <b>${esc(n.title)}</b><span class="tag ${n.status}">${n.status}</span>
+          <span class="pct" id="p_${esc(n.id)}">${pct(n.mastery)} mastery</span>
           <p>${esc(n.description)}</p>
           <ul>${n.objectives.map(o => `<li>${esc(o)}</li>`).join("")}</ul>
           ${n.status === "unlocked"
             ? `<button class="master" data-id="${esc(n.id)}">Mark mastered</button>` : ""}
+          ${n.status !== "locked"
+            ? `<button class="quizbtn" data-id="${esc(n.id)}">Take quiz</button>` : ""}
           <button class="more" data-id="${esc(n.id)}">Show details</button>
+          <div class="quiz" id="q_${esc(n.id)}" hidden></div>
           <div class="detail" id="d_${esc(n.id)}" hidden></div>
         </div>`).join("");
     }
 
+    const pct = m => Math.round((m ?? 0) * 100) + "%";
+
+    // Latest tree returned by an answer; the page re-renders with it when the quiz is finished,
+    // so the quiz stays on screen while it is being answered.
+    let pendingTree = null;
+
+    async function startQuiz(btn) {
+      const box = document.getElementById("q_" + btn.dataset.id);
+      box.hidden = false;
+      btn.disabled = true;
+      box.innerHTML = "<p class='note'>Local model is writing a quiz. This could take a minute...</p>";
+      try {
+        const quiz = await post(`/trees/${encodeURIComponent(TREE)}/nodes/${encodeURIComponent(btn.dataset.id)}/quiz`);
+        box.innerHTML = `<p class="result">Difficulty: <b>${esc(quiz.difficulty)}</b>
+            (current mastery ${pct(quiz.mastery)})</p>` +
+          quiz.questions.map((q, i) => `
+            <div class="q" data-qid="${q.id}">
+              <b>${i + 1}. ${esc(q.text)}</b>
+              ${q.options.map(o => `<button class="opt" data-qid="${q.id}" data-opt="${esc(o.id)}">
+                ${esc(o.id)}) ${esc(o.text)}</button>`).join("")}
+              <div class="result" hidden></div>
+            </div>`).join("") +
+          `<button class="finish" hidden>Finish quiz</button>`;
+      } catch (err) {
+        box.innerHTML = `<p class='note'>Failed: ${esc(err.message)}</p>`;
+        btn.disabled = false;
+      }
+    }
+
+    async function answer(opt) {
+      const q = opt.closest(".q");
+      const buttons = q.querySelectorAll(".opt");
+      buttons.forEach(b => b.disabled = true);
+      const out = q.querySelector(".result");
+      try {
+        const r = await post(`/quiz/${opt.dataset.qid}/answer`, { option_id: opt.dataset.opt });
+        buttons.forEach(b => {
+          if (b.dataset.opt === r.correct_option_id) b.classList.add("right");
+          else if (b === opt) b.classList.add("wrong");
+        });
+        out.innerHTML = `${r.correct ? "Correct." : "Wrong."} ${esc(r.explanation)}
+          <br>Mastery now <b>${pct(r.mastery)}</b>`;
+        pendingTree = r.tree;
+        const nodeId = opt.closest(".quiz").id.slice(2);
+        document.getElementById("p_" + nodeId).textContent = pct(r.mastery) + " mastery";
+      } catch (err) {
+        out.innerHTML = `Failed: ${esc(err.message)}`;
+        buttons.forEach(b => b.disabled = false);
+      }
+      out.hidden = false;
+      const box = opt.closest(".quiz");
+      if ([...box.querySelectorAll(".q")].every(x => !x.querySelector(".result").hidden))
+        box.querySelector(".finish").hidden = false;
+    }
+
     document.getElementById("side").addEventListener("click", async e => {
+      const quizBtn = e.target.closest(".quizbtn");
+      if (quizBtn) return startQuiz(quizBtn);
+      const opt = e.target.closest(".opt");
+      if (opt) return answer(opt);
+      if (e.target.closest(".finish")) {
+        const tree = pendingTree;
+        pendingTree = null;
+        return load(tree ?? undefined);
+      }
       const more = e.target.closest(".more");
       if (more) return showDetails(more);
       const btn = e.target.closest(".master");
