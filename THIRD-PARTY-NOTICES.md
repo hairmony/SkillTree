@@ -4,13 +4,13 @@ This project incorporates components from the projects listed below. The
 original copyright notices and the licenses under which these components were
 received are set forth below for informational purposes.
 
-========================================================================
+---
+
 Library Name: Adaptive Knowledge Graph (v0.3.0)
+
 Repository: https://github.com/MysterionRise/adaptive-knowledge-graph
-Used in: backend/quiz_generator.py (adapted from
-         backend/app/student/quiz_generator.py); difficulty bands in
-         backend/main.py (from backend/app/student/models.py)
-========================================================================
+
+---
 
 MIT License
 
@@ -34,12 +34,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-========================================================================
+---
+
 Library Name: OpenTutor (v0.1.1-alpha, commit 8af06ce)
+
 Repository: https://github.com/zijinz456/OpenTutor
-Used in: backend/knowledge_tracer.py (copied from
-         apps/api/services/learning_science/knowledge_tracer.py)
-========================================================================
+
+---
 
 MIT License
 
