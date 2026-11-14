@@ -27,6 +27,7 @@
     .form { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .form input, .form textarea { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 6px; }
     .form textarea { height: 160px; }
+    .form textarea.short { height: 60px; }
     button { padding: 6px 12px; cursor: pointer; }
     #msg { margin-left: 10px; }
     .detail { margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px; }
@@ -58,13 +59,15 @@
   </header>
 
   <details>
-    <summary>Create a new tree from text</summary>
+    <summary>Create a new tree</summary>
     <div class="form">
       <label>Topic</label>
       <input id="newTopic" placeholder="e.g. Introduction to Discrete Mathematics">
-      <label>Source (link)</label>
-      <input id="newSource" placeholder="e.g. https://philsci-archive.pitt.edu/id/eprint/16561/1/Discrete%20and%20Continuous.pdf">
-      <label>Reference text (paragraphs separated by blank line)</label>
+      <label>Description (optional)</label>
+      <textarea id="newDesc" class="short" placeholder="e.g. Explain eigenvectors in relation to machine learning"></textarea>
+      <label>Sources (optional)</label>
+      <input id="newSource" placeholder="e.g. a link or a book title">
+      <label>Notes (optional)</label>
       <textarea id="newText"></textarea>
       <button id="gen">Generate Skill Tree</button>
       <span id="msg"></span>
@@ -300,9 +303,10 @@
     }
 
     function link(s) {
+      const label = `${esc(s.title || s.source)} (${esc(s.type || "text")})`;
       return s.url
-        ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.source)}</a>`
-        : esc(s.source);
+        ? `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        : label;
     }
 
     function renderContent(c) {
@@ -341,18 +345,25 @@
       const text = document.getElementById("newText").value.trim();
       const msg = document.getElementById("msg");
       const btn = document.getElementById("gen");
-      if (!topic || !text) { msg.textContent = "Please fill in the topic and reference text."; return; }
+      if (!topic) { msg.textContent = "Please enter a topic."; return; }
 
       btn.disabled = true;
-      msg.textContent = "Growing your skill tree... this could take a few minutes.";
+      msg.textContent = "Starting...";
       try {
-        const source = document.getElementById("newSource").value.trim() || "pasted text";
-        const { tree_id: id } = await post("/ingest/text", { topic, source, text });
-        const data = await post("/trees/generate", { tree_id: id, topic });
-        TREE = id;
-        await loadTrees();
-        await load(data);
-        msg.textContent = "Done.";
+        const source = document.getElementById("newSource").value.trim() || "your material";
+        const description = document.getElementById("newDesc").value.trim();
+        const { tree_id: id } = await post("/trees/create", { topic, description, text: text || null, source });
+        let job;
+        do {
+          await new Promise(r => setTimeout(r, 2000));
+          job = await api(`/trees/${encodeURIComponent(id)}/status`);
+          msg.textContent = job.message;
+        } while (job.state === "running");
+        if (job.state === "done") {
+          TREE = id;
+          await loadTrees();
+          await load();
+        }
       } catch (err) {
         msg.textContent = "Failed: " + err.message;
       } finally {
