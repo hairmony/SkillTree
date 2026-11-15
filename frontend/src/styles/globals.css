@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-dark-elevated;
+  }
+  body {
+    @apply bg-dark-primary text-text-primary;
+  }
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-dark-primary;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-dark-elevated rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-dark-card rounded-xl border border-dark-elevated p-6;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-accent-purple/30 hover:shadow-lg hover:shadow-accent-purple/5;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent-purple px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-accent-purple-hover focus:outline-none focus:ring-2 focus:ring-accent-purple/50 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-dark-elevated px-4 py-2.5 text-sm font-medium text-text-primary transition-all duration-200 hover:bg-dark-card focus:outline-none focus:ring-2 focus:ring-accent-purple/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-text-secondary transition-all duration-200 hover:bg-dark-elevated hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-purple/30;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-danger/10 px-4 py-2.5 text-sm font-medium text-danger transition-all duration-200 hover:bg-danger/20 focus:outline-none focus:ring-2 focus:ring-danger/30;
+  }
+  .input-field {
+    @apply w-full rounded-lg bg-dark-primary border border-dark-elevated px-4 py-2.5 text-sm text-text-primary placeholder-text-muted transition-all duration-200 focus:border-accent-purple focus:outline-none focus:ring-2 focus:ring-accent-purple/20;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .skeleton {
+    @apply animate-pulse rounded bg-dark-elevated;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-purple to-accent-cyan bg-clip-text text-transparent;
+  }
+}
