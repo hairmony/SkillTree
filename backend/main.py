@@ -330,7 +330,7 @@ def new_quiz(tree_id: str, node_id: str, num_questions: int = 5):
         except ValueError as e:
             raise HTTPException(422, str(e))
         quiz_id, ids = database.create_quiz(tree_id, node_id, questions)
-        quiz = {"id": quiz_id, "questions": [{"id": i, **q} for i, q in zip(ids, questions)]}
+        quiz = {"id": quiz_id, "questions": [{**q, "id": i} for i, q in zip(ids, questions)]}
     return {
         "quiz_id": quiz["id"],
         "node_id": node_id,
