@@ -1,74 +1,93 @@
+import { useMemo } from 'react';
 import {
   Trophy,
-  Award,
-  Sparkles,
   Flame,
   CheckCircle2,
   Lock,
   Star,
-  Zap,
   BookOpen,
-  Footprints,
-  Compass,
+  Layers,
   GraduationCap,
+  ShieldCheck,
 } from 'lucide-react';
-import { useGamificationStore } from '@/stores';
+import { useGamificationStore, checkAchievements } from '@/stores';
 import { ProgressBar, Badge } from '@/components/ui';
 import { formatDate } from '@/lib/utils';
-import type { Achievement } from '@/types';
+import type { Achievement } from '@/types/app';
 
 const iconMap: Record<string, React.ElementType> = {
-  footprints: Footprints,
   'book-open': BookOpen,
-  'graduation-cap': GraduationCap,
-  'check-circle': CheckCircle2,
-  trophy: Trophy,
+  layers: Layers,
+  'shield-check': ShieldCheck,
   star: Star,
-  compass: Compass,
-  award: Award,
   flame: Flame,
-  zap: Zap,
+  'graduation-cap': GraduationCap,
+  award: GraduationCap,
 };
 
-function AchievementCard({ achievement }: { achievement: Achievement }) {
-  const isUnlocked = !!achievement.unlockedAt;
+function AchievementCard({
+  achievement,
+  currentValue,
+}: {
+  achievement: Achievement;
+  currentValue: number;
+}) {
+  const isUnlocked = Boolean(achievement.unlockedAt);
   const Icon = iconMap[achievement.icon] || Trophy;
+  const target = achievement.requirement.count;
+  const progressRatio = Math.min(1, Math.max(0, currentValue / target));
 
   return (
     <div
       className={`card transition-all duration-200 ${
         isUnlocked
-          ? 'border-accent-purple/40 bg-dark-card shadow-lg shadow-accent-purple/5'
-          : 'opacity-60 bg-dark-secondary border-dark-elevated'
+          ? 'border-accent-purple/40 bg-dark-card shadow-sm shadow-accent-purple/5'
+          : 'opacity-80 bg-dark-secondary/60 border-dark-elevated hover:opacity-95'
       }`}
     >
       <div className="flex items-start gap-4">
         <div
-          className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${
+          className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
             isUnlocked
-              ? 'bg-gradient-to-br from-accent-purple to-accent-cyan text-white shadow-md'
-              : 'bg-dark-elevated text-text-muted'
+              ? 'bg-accent-purple/20 text-accent-purple border border-accent-purple/30'
+              : 'bg-dark-elevated text-text-muted border border-dark-elevated'
           }`}
         >
           <Icon className="h-6 w-6" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h4 className="font-semibold text-text-primary truncate">{achievement.title}</h4>
+            <h4 className="font-semibold text-text-primary text-base truncate">
+              {achievement.title}
+            </h4>
             {isUnlocked ? (
-              <Badge variant="success" className="text-[10px]">
+              <Badge variant="success" className="text-[10px] shrink-0">
                 Unlocked
               </Badge>
             ) : (
-              <div className="flex items-center gap-1 text-[11px] text-text-muted">
+              <div className="flex items-center gap-1 text-[11px] text-text-muted shrink-0">
                 <Lock className="h-3 w-3" />
                 <span>Locked</span>
               </div>
             )}
           </div>
-          <p className="text-sm text-text-secondary mt-1">{achievement.description}</p>
+          <p className="text-xs text-text-secondary mt-1">{achievement.description}</p>
+
+          {/* Progress bar towards completion */}
+          {!isUnlocked && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[11px] text-text-muted mb-1.5">
+                <span>Progress</span>
+                <span className="font-medium text-text-secondary">
+                  {currentValue} / {target}
+                </span>
+              </div>
+              <ProgressBar value={progressRatio} size="sm" color="purple" />
+            </div>
+          )}
+
           {isUnlocked && achievement.unlockedAt && (
-            <p className="text-[11px] text-text-muted mt-2">
+            <p className="text-[11px] text-text-muted mt-2.5">
               Achieved on {formatDate(achievement.unlockedAt)}
             </p>
           )}
@@ -79,43 +98,71 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
 }
 
 export default function AchievementsPage() {
-  const { xp, level, achievements, streakDays, lessonsCompleted, quizzesPassed } =
-    useGamificationStore();
+  const store = useGamificationStore();
+  const {
+    xp,
+    level,
+    streakDays,
+    lessonsCompleted,
+    quizzesPassed,
+    perfectQuizzes,
+    treesCompleted,
+  } = store;
 
-  const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
+  // Derive the 6 canonical achievements directly from store metrics and unlocked history
+  const achievements: Achievement[] = useMemo(() => checkAchievements(store), [store]);
+
+  const unlockedCount = achievements.filter((a) => Boolean(a.unlockedAt)).length;
   const progressRatio = achievements.length > 0 ? unlockedCount / achievements.length : 0;
 
+  const getCurrentValueForType = (type: string): number => {
+    switch (type) {
+      case 'lessons_completed':
+        return lessonsCompleted;
+      case 'quizzes_passed':
+        return quizzesPassed;
+      case 'perfect_quiz':
+        return perfectQuizzes;
+      case 'streak_days':
+        return streakDays;
+      case 'trees_completed':
+        return treesCompleted;
+      default:
+        return 0;
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-text-primary">Achievements & Milestones</h2>
+        <h2 className="text-xl font-bold text-text-primary">Achievements</h2>
         <p className="text-sm text-text-secondary mt-1">
-          Gamified motivation designed to reinforce continuous deliberate practice
+          Milestones earned through active learning, concept mastery, and deliberate practice
         </p>
       </div>
 
-      {/* Hero Banner */}
-      <div className="card bg-gradient-to-r from-accent-purple/20 via-dark-card to-accent-cyan/10 border-accent-purple/30">
+      {/* Level & XP Overview Card */}
+      <div className="card bg-gradient-to-r from-accent-purple/15 via-dark-card to-accent-cyan/10 border-accent-purple/25">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-accent-purple flex items-center justify-center text-white shadow-xl shadow-accent-purple/20">
-              <Trophy className="h-8 w-8" />
+            <div className="h-14 w-14 rounded-xl bg-accent-purple flex items-center justify-center text-white shadow-lg shadow-accent-purple/20 shrink-0">
+              <Trophy className="h-7 w-7" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-2xl font-bold text-text-primary">Level {level} Scholar</h3>
-                <span className="badge bg-accent-purple/20 text-accent-purple font-semibold">
-                  {xp} Total XP
+                <h3 className="text-xl font-bold text-text-primary">Level {level}</h3>
+                <span className="badge bg-accent-purple/20 text-accent-purple font-semibold text-xs">
+                  {xp} XP
                 </span>
               </div>
-              <p className="text-sm text-text-secondary mt-1">
-                {unlockedCount} of {achievements.length} badges unlocked
+              <p className="text-xs text-text-secondary mt-1">
+                {unlockedCount} of {achievements.length} achievements completed
               </p>
             </div>
           </div>
-          <div className="w-full sm:w-64 space-y-2">
+          <div className="w-full sm:w-60 space-y-1.5">
             <div className="flex justify-between text-xs text-text-secondary">
-              <span>Next Level</span>
+              <span>Next Level (Level {level + 1})</span>
               <span>{xp % 100} / 100 XP</span>
             </div>
             <ProgressBar value={(xp % 100) / 100} size="md" color="purple" />
@@ -123,44 +170,49 @@ export default function AchievementsPage() {
         </div>
       </div>
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="card text-center py-4">
-          <Flame className="h-6 w-6 text-danger mx-auto mb-1" />
-          <p className="text-2xl font-bold text-text-primary">{streakDays} Days</p>
-          <p className="text-xs text-text-muted">Learning Streak</p>
+      {/* Summary Metrics Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="card text-center py-3.5 px-2">
+          <Flame className="h-5 w-5 text-danger mx-auto mb-1" />
+          <p className="text-xl font-bold text-text-primary">{streakDays} Days</p>
+          <p className="text-[11px] text-text-muted">Active Streak</p>
         </div>
-        <div className="card text-center py-4">
-          <BookOpen className="h-6 w-6 text-accent-cyan mx-auto mb-1" />
-          <p className="text-2xl font-bold text-text-primary">{lessonsCompleted}</p>
-          <p className="text-xs text-text-muted">Lessons Completed</p>
+        <div className="card text-center py-3.5 px-2">
+          <BookOpen className="h-5 w-5 text-accent-cyan mx-auto mb-1" />
+          <p className="text-xl font-bold text-text-primary">{lessonsCompleted}</p>
+          <p className="text-[11px] text-text-muted">Concepts Completed</p>
         </div>
-        <div className="card text-center py-4">
-          <CheckCircle2 className="h-6 w-6 text-success mx-auto mb-1" />
-          <p className="text-2xl font-bold text-text-primary">{quizzesPassed}</p>
-          <p className="text-xs text-text-muted">Quizzes Passed</p>
+        <div className="card text-center py-3.5 px-2">
+          <CheckCircle2 className="h-5 w-5 text-success mx-auto mb-1" />
+          <p className="text-xl font-bold text-text-primary">{quizzesPassed}</p>
+          <p className="text-[11px] text-text-muted">Quizzes Passed</p>
         </div>
-        <div className="card text-center py-4">
-          <Sparkles className="h-6 w-6 text-accent-purple mx-auto mb-1" />
-          <p className="text-2xl font-bold text-text-primary">{Math.round(progressRatio * 100)}%</p>
-          <p className="text-xs text-text-muted">Badges Unlocked</p>
-        </div>
-      </div>
-
-      {/* Achievements Grid */}
-      <div>
-        <h3 className="text-lg font-semibold text-text-primary mb-4">All Badges</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {achievements.map((achievement) => (
-            <AchievementCard key={achievement.id} achievement={achievement} />
-          ))}
+        <div className="card text-center py-3.5 px-2">
+          <Trophy className="h-5 w-5 text-accent-purple mx-auto mb-1" />
+          <p className="text-xl font-bold text-text-primary">{Math.round(progressRatio * 100)}%</p>
+          <p className="text-[11px] text-text-muted">Milestones Completed</p>
         </div>
       </div>
 
-      <div className="p-4 rounded-xl bg-dark-secondary border border-dark-elevated text-xs text-text-muted">
-        <p>
-          <strong>Note on Data Persistence:</strong> Gamification achievements, experience points, and learning streaks are stored locally within your browser using versioned local storage.
-        </p>
+      {/* Section Header */}
+      <div className="flex items-center justify-between border-b border-dark-elevated pb-2">
+        <h3 className="text-sm font-semibold text-text-primary">
+          Academic Milestones ({achievements.length})
+        </h3>
+        <span className="text-xs text-text-muted">
+          {unlockedCount} of {achievements.length} Unlocked
+        </span>
+      </div>
+
+      {/* Exactly Six Achievements Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {achievements.map((achievement) => (
+          <AchievementCard
+            key={achievement.id}
+            achievement={achievement}
+            currentValue={getCurrentValueForType(achievement.requirement.type)}
+          />
+        ))}
       </div>
     </div>
   );

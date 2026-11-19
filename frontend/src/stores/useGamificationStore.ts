@@ -2,78 +2,65 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Achievement, GamificationState } from '@/types/app';
 
-const ACHIEVEMENTS_DEFINITIONS: Omit<Achievement, 'unlockedAt'>[] = [
+export const ACHIEVEMENTS_DEFINITIONS: Omit<Achievement, 'unlockedAt'>[] = [
   {
-    id: 'first_step',
-    title: 'First Step',
-    description: 'Complete your first lesson',
-    icon: 'footprints',
+    id: 'learning_starter',
+    title: 'Learning Starter',
+    description: 'Complete your first learning concept.',
+    icon: 'book-open',
+    category: 'progress',
     requirement: { type: 'lessons_completed', count: 1 },
   },
   {
-    id: 'knowledge_seeker',
-    title: 'Knowledge Seeker',
-    description: 'Complete 5 lessons',
-    icon: 'book-open',
+    id: 'knowledge_builder',
+    title: 'Knowledge Builder',
+    description: 'Complete 5 learning concepts.',
+    icon: 'layers',
+    category: 'progress',
     requirement: { type: 'lessons_completed', count: 5 },
   },
   {
-    id: 'scholar',
-    title: 'Scholar',
-    description: 'Complete 20 lessons',
-    icon: 'graduation-cap',
-    requirement: { type: 'lessons_completed', count: 20 },
-  },
-  {
-    id: 'quiz_taker',
-    title: 'Quiz Taker',
-    description: 'Pass your first quiz',
-    icon: 'check-circle',
-    requirement: { type: 'quizzes_passed', count: 1 },
-  },
-  {
-    id: 'quiz_champion',
-    title: 'Quiz Champion',
-    description: 'Pass 5 quizzes',
-    icon: 'trophy',
+    id: 'assessment_proficiency',
+    title: 'Assessment Proficiency',
+    description: 'Pass 5 quizzes with scores of at least 75%.',
+    icon: 'shield-check',
+    category: 'mastery',
     requirement: { type: 'quizzes_passed', count: 5 },
   },
   {
-    id: 'perfectionist',
-    title: 'Perfectionist',
-    description: 'Score 100% on a quiz',
+    id: 'academic_excellence',
+    title: 'Academic Excellence',
+    description: 'Score 100% on any quiz.',
     icon: 'star',
+    category: 'mastery',
     requirement: { type: 'perfect_quiz', count: 1 },
   },
   {
-    id: 'explorer',
-    title: 'Knowledge Explorer',
-    description: 'Start 3 different skill trees',
-    icon: 'compass',
-    requirement: { type: 'trees_started', count: 3 },
-  },
-  {
-    id: 'path_master',
-    title: 'Path Master',
-    description: 'Complete an entire learning path',
-    icon: 'award',
-    requirement: { type: 'trees_completed', count: 1 },
-  },
-  {
-    id: 'dedicated',
-    title: 'Dedicated Learner',
-    description: 'Maintain a 3-day learning streak',
+    id: 'consistent_learner',
+    title: 'Consistent Learner',
+    description: 'Maintain a 7-day active learning streak.',
     icon: 'flame',
-    requirement: { type: 'streak_days', count: 3 },
-  },
-  {
-    id: 'consistent',
-    title: 'Consistency King',
-    description: 'Maintain a 7-day learning streak',
-    icon: 'zap',
+    category: 'consistency',
     requirement: { type: 'streak_days', count: 7 },
   },
+  {
+    id: 'curriculum_mastery',
+    title: 'Curriculum Mastery',
+    description: 'Complete all required learning concepts in one Skill Tree.',
+    icon: 'award',
+    category: 'progress',
+    requirement: { type: 'trees_completed', count: 1 },
+  },
 ];
+
+const ALIAS_MAP: Record<string, string[]> = {
+  learning_starter: ['first_step', 'first_milestone', 'learning_starter'],
+  knowledge_builder: ['knowledge_seeker', 'knowledge_explorer', 'knowledge_builder'],
+  assessment_proficiency: ['quiz_champion', 'assessment_proficiency'],
+  academic_excellence: ['perfectionist', 'quiz_excellence', 'academic_excellence'],
+  consistent_learner: ['streak_7', 'consistent_learner'],
+  curriculum_mastery: ['path_master', 'learning_specialist', 'curriculum_mastery'],
+};
 
 interface GamificationActions {
   addXP: (amount: number, reason: string) => void;
@@ -85,30 +72,35 @@ interface GamificationActions {
   resetGamification: () => void;
 }
 
-function checkAchievements(state: GamificationState): Achievement[] {
+export function checkAchievements(state: GamificationState): Achievement[] {
   return ACHIEVEMENTS_DEFINITIONS.map((def) => {
-    const existing = state.achievements.find((a) => a.id === def.id);
-    if (existing?.unlockedAt) return existing;
+    const aliases = ALIAS_MAP[def.id] || [];
+    const existing = state.achievements?.find(
+      (a) => a.id === def.id || aliases.includes(a.id)
+    );
+    if (existing?.unlockedAt) {
+      return { ...def, unlockedAt: existing.unlockedAt };
+    }
 
     let unlocked = false;
     switch (def.requirement.type) {
       case 'lessons_completed':
-        unlocked = state.lessonsCompleted >= def.requirement.count;
+        unlocked = (state.lessonsCompleted ?? 0) >= def.requirement.count;
         break;
       case 'quizzes_passed':
-        unlocked = state.quizzesPassed >= def.requirement.count;
-        break;
-      case 'trees_started':
-        unlocked = state.treesStarted >= def.requirement.count;
-        break;
-      case 'trees_completed':
-        unlocked = state.treesCompleted >= def.requirement.count;
-        break;
-      case 'streak_days':
-        unlocked = state.streakDays >= def.requirement.count;
+        unlocked = (state.quizzesPassed ?? 0) >= def.requirement.count;
         break;
       case 'perfect_quiz':
-        unlocked = state.perfectQuizzes >= def.requirement.count;
+        unlocked = (state.perfectQuizzes ?? 0) >= def.requirement.count;
+        break;
+      case 'streak_days':
+        unlocked = (state.streakDays ?? 0) >= def.requirement.count;
+        break;
+      case 'trees_completed':
+        unlocked = (state.treesCompleted ?? 0) >= def.requirement.count;
+        break;
+      case 'trees_started':
+        unlocked = (state.treesStarted ?? 0) >= def.requirement.count;
         break;
     }
 
@@ -136,7 +128,7 @@ export function getDaysBetweenCalendarDates(date1Str: string, date2Str: string):
   return Math.round((t2 - t1) / (1000 * 60 * 60 * 24));
 }
 
-const initialState: GamificationState = {
+const baseState: GamificationState = {
   xp: 0,
   level: 1,
   achievements: ACHIEVEMENTS_DEFINITIONS.map((d) => ({ ...d, unlockedAt: null })),
@@ -149,8 +141,56 @@ const initialState: GamificationState = {
   treesCompleted: 0,
   completedConceptIds: [],
   passedQuizIds: [],
-  version: 2,
+  version: 6,
 };
+
+function getMigratedInitialState(): GamificationState {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const v6 = localStorage.getItem('skilltree-gamification-v6');
+      if (!v6) {
+        // Safe backward migration from previous localStorage keys without deleting user progress
+        const prevKeys = [
+          'skilltree-gamification-v4',
+          'skilltree-gamification-v3',
+          'skilltree-gamification-v2',
+          'skilltree-gamification',
+        ];
+        for (const k of prevKeys) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const oldState = parsed.state || parsed;
+            const merged: GamificationState = {
+              ...baseState,
+              xp: oldState.xp || 0,
+              level: oldState.level || 1,
+              streakDays: oldState.streakDays || 0,
+              lastActivityDate: oldState.lastActivityDate || null,
+              lessonsCompleted: oldState.lessonsCompleted || 0,
+              quizzesPassed: oldState.quizzesPassed || 0,
+              perfectQuizzes: oldState.perfectQuizzes || 0,
+              treesStarted: oldState.treesStarted || 0,
+              treesCompleted: oldState.treesCompleted || 0,
+              completedConceptIds: oldState.completedConceptIds || [],
+              passedQuizIds: oldState.passedQuizIds || [],
+              version: 6,
+              achievements: [],
+            };
+            merged.achievements = checkAchievements(merged);
+            localStorage.setItem('skilltree-gamification-v6', JSON.stringify({ state: merged, version: 6 }));
+            return merged;
+          }
+        }
+      }
+    } catch {
+      // Ignore parse errors and fallback to baseState
+    }
+  }
+  return baseState;
+}
+
+const initialState: GamificationState = getMigratedInitialState();
 
 export const useGamificationStore = create<GamificationState & GamificationActions>()(
   persist(
@@ -161,7 +201,8 @@ export const useGamificationStore = create<GamificationState & GamificationActio
         set((state) => {
           const newXP = state.xp + amount;
           const newLevel = Math.floor(newXP / 100) + 1;
-          return { xp: newXP, level: newLevel };
+          const updated = { ...state, xp: newXP, level: newLevel };
+          return { ...updated, achievements: checkAchievements(updated) };
         });
         get().updateStreak();
       },
@@ -196,7 +237,6 @@ export const useGamificationStore = create<GamificationState & GamificationActio
 
         // If quiz was already passed, do not reward duplicate base XP
         if (quizKey && passedIds.includes(quizKey)) {
-          // If this is a new perfect score not previously achieved on this quiz
           if (score >= 1.0) {
             set((s) => {
               const updated = { ...s, perfectQuizzes: s.perfectQuizzes + 1 };
@@ -268,11 +308,24 @@ export const useGamificationStore = create<GamificationState & GamificationActio
         });
       },
 
-      resetGamification: () => set(initialState),
+      resetGamification: () => set(baseState),
     }),
     {
-      name: 'skilltree-gamification-v2',
+      name: 'skilltree-gamification-v6',
       storage: createJSONStorage(() => localStorage),
+      version: 6,
+      migrate: (persistedState: unknown) => {
+        const state = persistedState as GamificationState;
+        return {
+          ...state,
+          achievements: checkAchievements(state),
+        };
+      },
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.achievements = checkAchievements(state);
+        }
+      },
     }
   )
 );

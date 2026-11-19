@@ -11,15 +11,16 @@ import {
   Flame,
   ArrowRight,
   BarChart3,
-  FileText,
+  Search,
   Brain,
-  StickyNote,
   Award,
   Clock,
+  AlertCircle,
+  Trophy,
 } from 'lucide-react';
 import { useTreeList } from '@/hooks/useTreeQueries';
 import { treesApi } from '@/api';
-import { useGamificationStore, useSettingsStore, useNotesStore } from '@/stores';
+import { useGamificationStore, useSettingsStore } from '@/stores';
 import { EmptyState, ErrorMessage, ProgressBar, SkeletonCard, Badge } from '@/components/ui';
 import { cn, formatPercent, formatRelativeTime } from '@/lib/utils';
 import type { TreeDetail, TreeNode } from '@/types';
@@ -67,6 +68,7 @@ function ContinueLearningCard({
   const total = treeData?.nodes.length ?? 0;
   const progress = total > 0 ? mastered / total : 0;
   const nextUnlocked = treeData?.nodes.find((n) => n.status === 'unlocked');
+  const reviewRequired = treeData?.nodes.find((n) => n.kind === 'required' && n.status !== 'mastered');
 
   return (
     <div className="card-hover flex flex-col justify-between">
@@ -74,10 +76,16 @@ function ContinueLearningCard({
         <div className="flex items-center justify-between gap-2 mb-2">
           <h3 className="font-semibold text-text-primary truncate">{title}</h3>
           <Badge
-            variant={progress === 1 ? 'success' : progress > 0 ? 'purple' : 'default'}
+            variant={progress === 1 ? 'success' : reviewRequired ? 'danger' : progress > 0 ? 'purple' : 'default'}
             className="text-[10px] shrink-0"
           >
-            {progress === 1 ? 'Mastered' : progress > 0 ? 'In Progress' : 'Ready'}
+            {progress === 1
+              ? 'Mastered'
+              : reviewRequired
+              ? 'Review Needed'
+              : progress > 0
+              ? 'In Progress'
+              : 'Ready'}
           </Badge>
         </div>
         <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
@@ -87,15 +95,30 @@ function ContinueLearningCard({
           <span>{formatPercent(progress)}</span>
         </div>
         <ProgressBar value={progress} size="sm" className="mb-3" />
-        {nextUnlocked && (
+
+        {reviewRequired ? (
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-danger/10 text-danger text-xs mb-3">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Review: {reviewRequired.title}</span>
+          </div>
+        ) : nextUnlocked ? (
           <p className="text-xs text-text-muted mb-3 truncate">
             Next: <span className="text-text-primary font-medium">{nextUnlocked.title}</span>
           </p>
+        ) : (
+          <p className="text-xs text-text-muted mb-3">All available concepts mastered</p>
         )}
       </div>
 
       <div className="flex items-center gap-2 pt-2 border-t border-dark-elevated">
-        {nextUnlocked ? (
+        {reviewRequired ? (
+          <button
+            onClick={() => navigate(`/trees/${treeId}/learn/${reviewRequired.id}`)}
+            className="btn-danger flex-1 text-xs py-2 justify-center"
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Study Review
+          </button>
+        ) : nextUnlocked ? (
           <button
             onClick={() => navigate(`/trees/${treeId}/learn/${nextUnlocked.id}`)}
             className="btn-primary flex-1 text-xs py-2 justify-center"
@@ -125,9 +148,16 @@ function ContinueLearningCard({
 export default function DashboardPage() {
   const { data: trees, isLoading: treesLoading, error: treesError } = useTreeList();
   const displayName = useSettingsStore((s) => s.displayName);
-  const { xp, level, streakDays, lessonsCompleted, quizzesPassed, achievements } =
-    useGamificationStore();
-  const notes = useNotesStore((s) => s.notes);
+  const {
+    xp,
+    level,
+    streakDays,
+    lessonsCompleted,
+    quizzesPassed,
+    achievements,
+    completedConceptIds,
+    passedQuizIds,
+  } = useGamificationStore();
 
   const treeIds = useMemo(() => (trees || []).slice(0, 8).map((t) => t.id), [trees]);
   const { data: treeDetails } = useQuery({
@@ -200,7 +230,29 @@ export default function DashboardPage() {
     return available.slice(0, 4);
   }, [treeDetails, trees]);
 
-  // Real recent activity stream (from notes and unlocked achievements)
+  // Recently completed topics across trees
+  const recentlyCompletedTopics = useMemo(() => {
+    if (!treeDetails || !trees) return [];
+    const completed: {
+      treeId: string;
+      treeTitle: string;
+      node: TreeNode;
+    }[] = [];
+
+    treeDetails.forEach(({ id, data }) => {
+      if (!data) return;
+      const treeTitle = trees.find((t) => t.id === id)?.title || id;
+      data.nodes
+        .filter((n) => n.status === 'mastered')
+        .forEach((node) => {
+          completed.push({ treeId: id, treeTitle, node });
+        });
+    });
+
+    return completed.slice(0, 4);
+  }, [treeDetails, trees]);
+
+  // Recent activity stream (from unlocked achievements & completed concept keys)
   const recentActivities = useMemo(() => {
     type ActivityItem = {
       id: string;
@@ -213,22 +265,7 @@ export default function DashboardPage() {
     };
     const items: ActivityItem[] = [];
 
-    notes.forEach((n) => {
-      items.push({
-        id: `note-${n.id}`,
-        icon: StickyNote,
-        iconColor: 'bg-accent-cyan/10 text-accent-cyan',
-        title: `Note: ${n.title}`,
-        description: n.nodeName
-          ? `Concept: ${n.nodeName}`
-          : n.treeName
-          ? `Tree: ${n.treeName}`
-          : 'Personal study note',
-        timestamp: n.updatedAt,
-        link: '/notes',
-      });
-    });
-
+    // Recent achievements
     achievements
       .filter((a) => Boolean(a.unlockedAt))
       .forEach((a) => {
@@ -246,7 +283,7 @@ export default function DashboardPage() {
     return items
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 5);
-  }, [notes, achievements]);
+  }, [achievements]);
 
   if (treesError) {
     return (
@@ -258,24 +295,28 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Welcome Section */}
+    <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
+      {/* Welcome Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-text-primary">
             Welcome back, {displayName}! 👋
           </h2>
           <p className="text-text-secondary mt-1">
-            Ready to continue your adaptive learning pathways?
+            Adaptive directed acyclic graphs customized to your learning pace and mastery
           </p>
         </div>
-        <Link to="/trees/create" className="btn-primary shrink-0">
-          <Plus className="h-4 w-4" />
-          Create Skill Tree
-        </Link>
+        <div className="flex items-center gap-3 shrink-0">
+          <Link to="/explore" className="btn-secondary">
+            <Search className="h-4 w-4" /> Explore
+          </Link>
+          <Link to="/trees/create" className="btn-primary">
+            <Plus className="h-4 w-4" /> Create Skill Tree
+          </Link>
+        </div>
       </div>
 
-      {/* Primary Metrics Row (Non-duplicated) */}
+      {/* Primary Metrics Row */}
       {treesLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -286,45 +327,45 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={GitFork}
-            label="Active Skill Trees"
+            label="My Learning Trees"
             value={stats.totalTrees}
             color="bg-accent-purple/10 text-accent-purple"
-            subtext={stats.activePaths > 0 ? `${stats.activePaths} currently in progress` : 'All caught up'}
+            subtext={stats.activePaths > 0 ? `${stats.activePaths} in progress` : 'All caught up'}
           />
           <StatCard
             icon={CheckCircle2}
             label="Concepts Mastered"
             value={stats.completedConcepts}
             color="bg-success/10 text-success"
-            subtext={`of ${stats.totalConcepts} total concepts`}
+            subtext={`of ${stats.totalConcepts} curriculum concepts`}
           />
           <StatCard
             icon={TrendingUp}
-            label="Overall Progress"
+            label="Curriculum Progress"
             value={formatPercent(stats.overallProgress)}
             color="bg-accent-cyan/10 text-accent-cyan"
-            subtext="Curriculum completion"
+            subtext="DAG completion rate"
           />
           <StatCard
             icon={Flame}
-            label="Deliberate Streak"
+            label="Learning Streak"
             value={`${streakDays} Days`}
             color="bg-danger/10 text-danger"
-            subtext="Continuous daily engagement"
+            subtext="Consecutive days active"
           />
         </div>
       )}
 
-      {/* Continue Learning Pathways */}
+      {/* Continue Learning Section */}
       {continueTrees.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-semibold text-text-primary">Continue Learning</h3>
-              <p className="text-xs text-text-secondary">Pick up right where you left off</p>
+              <p className="text-xs text-text-secondary">Pick up where you left off</p>
             </div>
-            <Link to="/trees" className="text-sm text-accent-purple hover:text-accent-purple-hover">
-              View all trees →
+            <Link to="/trees" className="text-sm text-accent-purple hover:text-accent-purple-hover flex items-center gap-1">
+              View all trees <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -395,61 +436,43 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Bottom Grid: Real Activity Stream + Scholar Gamification Profile */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Real Recent Activity */}
-        <div className="lg:col-span-2 card">
+      {/* Recently Completed Topics */}
+      {recentlyCompletedTopics.length > 0 && (
+        <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-text-primary">Recent Learning Activity</h3>
-            <span className="text-xs text-text-muted">Verified local actions</span>
-          </div>
-          {recentActivities.length > 0 ? (
-            <div className="space-y-2.5">
-              {recentActivities.map((act) => {
-                const Icon = act.icon;
-                return (
-                  <div
-                    key={act.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-dark-primary border border-dark-elevated text-xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={cn(
-                          'h-8 w-8 rounded-lg flex items-center justify-center shrink-0',
-                          act.iconColor
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-text-primary truncate">{act.title}</p>
-                        <p className="text-text-muted truncate">{act.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-3">
-                      <span className="text-text-muted">{formatRelativeTime(act.timestamp)}</span>
-                      {act.link && (
-                        <Link to={act.link} className="text-accent-purple hover:underline">
-                          View
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-xs text-text-muted space-y-2">
-              <Clock className="h-8 w-8 mx-auto text-text-muted/60" />
-              <p>No study notes or achievements recorded yet.</p>
-              <p className="text-text-secondary">
-                Complete lessons or write notes while studying to populate your log.
+            <div>
+              <h3 className="text-lg font-semibold text-text-primary">Recently Mastered Topics</h3>
+              <p className="text-xs text-text-secondary">
+                Concepts where you have satisfied mastery through quizzes or completion
               </p>
             </div>
-          )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {recentlyCompletedTopics.map(({ treeId, treeTitle, node }) => (
+              <div key={`mastered-${treeId}-${node.id}`} className="card p-3.5 flex items-center justify-between">
+                <div className="min-w-0 pr-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0" />
+                    <span className="text-[11px] text-text-muted truncate">{treeTitle}</span>
+                  </div>
+                  <h4 className="font-semibold text-xs text-text-primary truncate">{node.title}</h4>
+                </div>
+                <Link
+                  to={`/trees/${treeId}/learn/${node.id}`}
+                  className="btn-ghost text-xs p-1.5 text-text-muted hover:text-text-primary"
+                  title="Review concept"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
 
-        {/* Scholar Gamification Profile */}
+      {/* Scholar Profile & Achievements Showcase */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Scholar Gamification Card */}
         <div className="card flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -481,9 +504,58 @@ export default function DashboardPage() {
           </div>
           <div className="pt-4 border-t border-dark-elevated mt-4">
             <Link to="/achievements" className="btn-secondary w-full text-xs justify-center">
-              <Award className="h-3.5 w-3.5" /> View Achievements
+              <Award className="h-3.5 w-3.5" /> View All Achievements
             </Link>
           </div>
+        </div>
+
+        {/* Real Achievements Showcase */}
+        <div className="lg:col-span-2 card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold text-text-primary">Recent Achievements</h3>
+            <Link to="/achievements" className="text-xs text-accent-purple hover:underline">
+              View All ({achievements.filter((a) => a.unlockedAt).length}/{achievements.length})
+            </Link>
+          </div>
+          {recentActivities.length > 0 ? (
+            <div className="space-y-2.5">
+              {recentActivities.map((act) => {
+                const Icon = act.icon;
+                return (
+                  <div
+                    key={act.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-dark-primary border border-dark-elevated text-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          'h-8 w-8 rounded-lg flex items-center justify-center shrink-0',
+                          act.iconColor
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-text-primary truncate">{act.title}</p>
+                        <p className="text-text-muted truncate">{act.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      <span className="text-text-muted">{formatRelativeTime(act.timestamp)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-xs text-text-muted space-y-2">
+              <Trophy className="h-8 w-8 mx-auto text-text-muted/60" />
+              <p>No achievements unlocked yet.</p>
+              <p className="text-text-secondary">
+                Complete your first lesson or take a quiz to earn your first scholar badge!
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -497,39 +569,39 @@ export default function DashboardPage() {
             </div>
             <h4 className="font-semibold text-text-primary">Create Skill Tree</h4>
             <p className="text-sm text-text-secondary mt-1">
-              Start learning a new topic with AI-generated pathways
+              Start learning a new topic with AI-generated branching DAGs
             </p>
           </Link>
-          <Link to="/documents" className="card-hover group">
+          <Link to="/explore" className="card-hover group">
             <div className="h-10 w-10 rounded-xl bg-accent-cyan/10 flex items-center justify-center mb-3 group-hover:bg-accent-cyan/20 transition-colors">
-              <FileText className="h-5 w-5 text-accent-cyan" />
+              <Search className="h-5 w-5 text-accent-cyan" />
             </div>
-            <h4 className="font-semibold text-text-primary">Upload Documents</h4>
+            <h4 className="font-semibold text-text-primary">Explore Pathways</h4>
             <p className="text-sm text-text-secondary mt-1">
-              Add your own study materials to ground the learning pathways
+              Search cross-curriculum concepts, definitions, and citations
             </p>
           </Link>
           <Link to="/analytics" className="card-hover group">
             <div className="h-10 w-10 rounded-xl bg-success/10 flex items-center justify-center mb-3 group-hover:bg-success/20 transition-colors">
               <BarChart3 className="h-5 w-5 text-success" />
             </div>
-            <h4 className="font-semibold text-text-primary">View Analytics</h4>
+            <h4 className="font-semibold text-text-primary">Learning Analytics</h4>
             <p className="text-sm text-text-secondary mt-1">
-              Track your progress and identify concepts to reinforce
+              Track Bayesian Knowledge Tracing scores and weak concepts
             </p>
           </Link>
         </div>
       </div>
 
-      {/* Empty state if no trees */}
+      {/* Empty State if No Trees Exist */}
       {!treesLoading && stats.totalTrees === 0 && (
         <EmptyState
           icon={GitFork}
           title="No skill trees yet"
-          description="Create your first skill tree to start your personalized learning journey"
+          description="Create your first skill tree to synthesize an adaptive learning pathway grounded in free academic resources."
           action={
             <Link to="/trees/create" className="btn-primary">
-              <Plus className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Create Your First Skill Tree
             </Link>
           }

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { Badge, ProgressBar, EmptyState, ErrorMessage } from '@/components/ui';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { TopBar } from '@/components/layout/TopBar';
 import { Sparkles, AlertTriangle } from 'lucide-react';
 
 describe('UI Components', () => {
@@ -76,27 +77,44 @@ describe('UI Components', () => {
   });
 
   describe('Sidebar Navigation', () => {
-    it('renders exactly 9 navigation links and no redundant Learning Center or Quizzes', () => {
+    it('renders exactly 6 core navigation links and no removed features', () => {
       render(
         <BrowserRouter>
           <Sidebar />
         </BrowserRouter>
       );
 
-      // Verify the 9 specific navigation items exist
+      // Verify the 6 core navigation items exist
       expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
       expect(screen.getAllByText('My Skill Trees').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Explore').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Analytics').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Achievements').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('My Notes').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Documents').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Reports').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
 
-      // Verify redundant items do NOT exist in the sidebar
+      // Verify removed items do NOT exist in the sidebar
+      expect(screen.queryByText('My Notes')).toBeNull();
+      expect(screen.queryByText('Documents')).toBeNull();
+      expect(screen.queryByText('Reports')).toBeNull();
       expect(screen.queryByText('Learning Center')).toBeNull();
       expect(screen.queryByText('Quizzes')).toBeNull();
+    });
+  });
+
+  describe('TopBar Navigation', () => {
+    it('renders learner profile and does not render search or notification icons', () => {
+      render(
+        <BrowserRouter>
+          <TopBar />
+        </BrowserRouter>
+      );
+
+      // Verify learner profile is present
+      expect(screen.getByText('Learner')).toBeTruthy();
+
+      // Verify Search and Notification buttons are completely removed
+      expect(screen.queryByLabelText('Search')).toBeNull();
+      expect(screen.queryByLabelText('Notifications')).toBeNull();
     });
   });
 });

@@ -11,7 +11,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      'canvg': path.resolve(__dirname, './src/lib/canvg-mock.ts'),
     },
   },
 });

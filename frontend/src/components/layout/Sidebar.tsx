@@ -6,9 +6,6 @@ import {
   Search,
   BarChart3,
   Trophy,
-  StickyNote,
-  FileText,
-  FileBarChart,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -24,9 +21,6 @@ const navItems = [
   { id: 'explore', label: 'Explore', path: '/explore', icon: Search },
   { id: 'analytics', label: 'Analytics', path: '/analytics', icon: BarChart3 },
   { id: 'achievements', label: 'Achievements', path: '/achievements', icon: Trophy },
-  { id: 'notes', label: 'My Notes', path: '/notes', icon: StickyNote },
-  { id: 'documents', label: 'Documents', path: '/documents', icon: FileText },
-  { id: 'reports', label: 'Reports', path: '/reports', icon: FileBarChart },
   { id: 'settings', label: 'Settings', path: '/settings', icon: Settings },
 ] as const;
 

@@ -1,19 +1,32 @@
-import type { TreeSummary, TreeNode } from './api';
-
 // ========== Gamification ==========
+
+export type AchievementCategory =
+  | 'getting_started'
+  | 'progress'
+  | 'mastery'
+  | 'consistency'
+  | 'experience';
+
+export interface AchievementRequirement {
+  type:
+    | 'lessons_completed'
+    | 'quizzes_passed'
+    | 'trees_started'
+    | 'trees_completed'
+    | 'streak_days'
+    | 'perfect_quiz'
+    | 'level_reached';
+  count: number;
+}
 
 export interface Achievement {
   id: string;
   title: string;
   description: string;
   icon: string;
+  category: AchievementCategory;
   unlockedAt: string | null;
   requirement: AchievementRequirement;
-}
-
-export interface AchievementRequirement {
-  type: 'lessons_completed' | 'quizzes_passed' | 'trees_started' | 'trees_completed' | 'streak_days' | 'perfect_quiz';
-  count: number;
 }
 
 export interface GamificationState {
@@ -32,20 +45,6 @@ export interface GamificationState {
   version: number;
 }
 
-// ========== Notes ==========
-
-export interface Note {
-  id: string;
-  title: string;
-  content: string;
-  treeId: string | null;
-  nodeId: string | null;
-  treeName: string | null;
-  nodeName: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // ========== Settings ==========
 
 export interface UserSettings {
@@ -58,31 +57,14 @@ export interface UserSettings {
   version: number;
 }
 
-// ========== Documents ==========
-
-export interface LocalDocument {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  treeId: string | null;
-  status: 'pending' | 'processing' | 'ingested' | 'failed';
-  chunksAdded: number;
-  error: string | null;
-  addedAt: string;
-}
-
 // ========== Navigation ==========
 
-export type PageId = 
+export type PageId =
   | 'dashboard'
   | 'trees'
   | 'explore'
   | 'analytics'
   | 'achievements'
-  | 'notes'
-  | 'documents'
-  | 'reports'
   | 'settings';
 
 export interface NavItem {

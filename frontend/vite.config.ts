@@ -7,7 +7,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      'canvg': path.resolve(__dirname, './src/lib/canvg-mock.ts'),
     },
   },
   server: {
@@ -17,6 +16,7 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        timeout: 300000,
       },
     },
   },

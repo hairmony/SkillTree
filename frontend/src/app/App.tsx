@@ -13,9 +13,6 @@ const QuizPage = lazy(() => import('@/features/quizzes/QuizPage'));
 const QuizHistoryPage = lazy(() => import('@/features/quizzes/QuizHistoryPage'));
 const AnalyticsPage = lazy(() => import('@/features/analytics/AnalyticsPage'));
 const AchievementsPage = lazy(() => import('@/features/gamification/AchievementsPage'));
-const NotesPage = lazy(() => import('@/features/notes/NotesPage'));
-const DocumentsPage = lazy(() => import('@/features/documents/DocumentsPage'));
-const ReportsPage = lazy(() => import('@/features/reports/ReportsPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const ExplorePage = lazy(() => import('@/features/search/ExplorePage'));
 
@@ -95,9 +92,6 @@ export function App() {
             </Suspense>
           }
         />
-        {/* Redirect redundant legacy routes to My Skill Trees */}
-        <Route path="learning" element={<Navigate to="/trees" replace />} />
-        <Route path="quizzes" element={<Navigate to="/trees" replace />} />
         <Route
           path="analytics"
           element={
@@ -115,30 +109,6 @@ export function App() {
           }
         />
         <Route
-          path="notes"
-          element={
-            <Suspense fallback={<SuspenseFallback />}>
-              <NotesPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="documents"
-          element={
-            <Suspense fallback={<SuspenseFallback />}>
-              <DocumentsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="reports"
-          element={
-            <Suspense fallback={<SuspenseFallback />}>
-              <ReportsPage />
-            </Suspense>
-          }
-        />
-        <Route
           path="settings"
           element={
             <Suspense fallback={<SuspenseFallback />}>
@@ -146,8 +116,19 @@ export function App() {
             </Suspense>
           }
         />
+
+        {/* Redirect removed and legacy routes to My Skill Trees */}
+        <Route path="learning" element={<Navigate to="/trees" replace />} />
+        <Route path="quizzes" element={<Navigate to="/trees" replace />} />
+        <Route path="notes" element={<Navigate to="/trees" replace />} />
+        <Route path="documents" element={<Navigate to="/trees" replace />} />
+        <Route path="reports" element={<Navigate to="/trees" replace />} />
+
+        {/* Catch-all fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
 }
+
 export default App;

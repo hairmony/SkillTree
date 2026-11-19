@@ -1,17 +1,13 @@
 import { useState } from 'react';
 import {
-  Settings,
   User,
   Sliders,
-  Trash2,
-  Download,
-  Upload,
-  Info,
   Check,
-  RotateCcw,
+  Sparkles,
+  Bell,
+  HelpCircle,
 } from 'lucide-react';
-import { useSettingsStore, useGamificationStore, useNotesStore } from '@/stores';
-import { ConfirmDialog } from '@/components/ui';
+import { useSettingsStore } from '@/stores';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -20,58 +16,26 @@ export default function SettingsPage() {
     animationsEnabled,
     notificationsEnabled,
     reducedMotion,
-    autoAdvance,
     quizQuestionCount,
     updateSettings,
-    resetSettings,
   } = useSettingsStore();
 
-  const { resetGamification } = useGamificationStore();
-  const { notes } = useNotesStore();
-
   const [nameInput, setNameInput] = useState(displayName);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleSaveName = (e: React.FormEvent) => {
     e.preventDefault();
     if (nameInput.trim()) {
       updateSettings({ displayName: nameInput.trim() });
-      toast.success('Display name updated');
+      toast.success('Display name saved');
     }
   };
 
-  const handleExportAllState = () => {
-    const data = {
-      settings: useSettingsStore.getState(),
-      gamification: useGamificationStore.getState(),
-      notes: useNotesStore.getState().notes,
-      exportedAt: new Date().toISOString(),
-      version: 1,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `skilltree-userdata-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Full frontend state exported');
-  };
-
-  const handleClearAllData = () => {
-    resetSettings();
-    resetGamification();
-    localStorage.clear();
-    setShowClearConfirm(false);
-    toast.success('All local data cleared. Refreshing defaults.');
-  };
-
   return (
-    <div className="max-w-3xl space-y-6 animate-fade-in">
+    <div className="max-w-3xl space-y-6 animate-fade-in mx-auto">
       <div>
-        <h2 className="text-xl font-bold text-text-primary">System Settings & Preferences</h2>
+        <h2 className="text-xl font-bold text-text-primary">Settings</h2>
         <p className="text-sm text-text-secondary mt-1">
-          Customize your learning environment, accessibility, and local storage state
+          Manage your profile and learning preferences.
         </p>
       </div>
 
@@ -79,145 +43,124 @@ export default function SettingsPage() {
       <div className="card space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-dark-elevated">
           <User className="h-5 w-5 text-accent-purple" />
-          <h3 className="font-semibold text-text-primary">Learner Identity</h3>
+          <h3 className="font-semibold text-text-primary">Profile</h3>
         </div>
-        <form onSubmit={handleSaveName} className="flex gap-3 items-end max-w-md">
-          <div className="flex-1">
-            <label htmlFor="learnerName" className="block text-xs font-medium text-text-secondary mb-1">
+
+        <form onSubmit={handleSaveName} className="space-y-3">
+          <div className="max-w-md">
+            <label
+              htmlFor="learnerName"
+              className="block text-xs font-medium text-text-secondary mb-1.5"
+            >
               Display Name
             </label>
-            <input
-              id="learnerName"
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Your name"
-            />
+            <div className="flex gap-2.5">
+              <input
+                id="learnerName"
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                className="input-field text-sm flex-1"
+                placeholder="Enter your name"
+                maxLength={40}
+              />
+              <button
+                type="submit"
+                className="btn-primary text-sm py-2 px-4 shrink-0 flex items-center gap-1.5"
+              >
+                <Check className="h-4 w-4" /> Save Changes
+              </button>
+            </div>
           </div>
-          <button type="submit" className="btn-primary text-sm py-2">
-            <Check className="h-4 w-4" /> Save
-          </button>
         </form>
-        <p className="text-xs text-text-muted">
-          SkillTree operates in single-user local mode without server-side authentication.
-        </p>
       </div>
 
-      {/* Learning & Accessibility Preferences */}
+      {/* Learning Preferences */}
       <div className="card space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-dark-elevated">
           <Sliders className="h-5 w-5 text-accent-cyan" />
-          <h3 className="font-semibold text-text-primary">Learning & Accessibility</h3>
+          <h3 className="font-semibold text-text-primary">Learning Preferences</h3>
         </div>
 
-        <div className="space-y-3">
-          <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-dark-primary/40">
-            <div>
-              <p className="text-sm font-medium text-text-primary">UI Motion & Transitions</p>
-              <p className="text-xs text-text-muted">Enable smooth animations across DAG and drawers</p>
+        <div className="space-y-3 divide-y divide-dark-elevated/40">
+          {/* UI Animations */}
+          <label className="flex items-center justify-between cursor-pointer pt-2 pb-1 hover:bg-dark-secondary/30 rounded-lg p-2 transition-colors">
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-4 w-4 text-accent-purple mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-text-primary">Interface Animations</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Enable smooth visual transitions across trees, nodes, and quiz panels
+                </p>
+              </div>
             </div>
             <input
               type="checkbox"
               checked={animationsEnabled}
               onChange={(e) => updateSettings({ animationsEnabled: e.target.checked })}
-              className="h-4 w-4 rounded accent-accent-purple"
+              className="h-4 w-4 rounded accent-accent-purple shrink-0 ml-4 cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-dark-primary/40">
-            <div>
-              <p className="text-sm font-medium text-text-primary">Reduced Motion Mode</p>
-              <p className="text-xs text-text-muted">Disable decorative ambient transitions</p>
+          {/* Reduced Motion Accessibility */}
+          <label className="flex items-center justify-between cursor-pointer pt-3 pb-1 hover:bg-dark-secondary/30 rounded-lg p-2 transition-colors">
+            <div className="flex items-start gap-3">
+              <HelpCircle className="h-4 w-4 text-accent-cyan mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-text-primary">Reduced Motion (Accessibility)</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Minimize motion effects for users with vestibular or motion sensitivities
+                </p>
+              </div>
             </div>
             <input
               type="checkbox"
               checked={reducedMotion}
               onChange={(e) => updateSettings({ reducedMotion: e.target.checked })}
-              className="h-4 w-4 rounded accent-accent-purple"
+              className="h-4 w-4 rounded accent-accent-purple shrink-0 ml-4 cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between cursor-pointer p-2 rounded-lg hover:bg-dark-primary/40">
-            <div>
-              <p className="text-sm font-medium text-text-primary">Notification Toasts</p>
-              <p className="text-xs text-text-muted">Show feedback messages on mastery milestones and actions</p>
+          {/* Notification Toasts */}
+          <label className="flex items-center justify-between cursor-pointer pt-3 pb-1 hover:bg-dark-secondary/30 rounded-lg p-2 transition-colors">
+            <div className="flex items-start gap-3">
+              <Bell className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-text-primary">Notifications</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Display toast alerts for completed concepts, quiz scores, and achievements
+                </p>
+              </div>
             </div>
             <input
               type="checkbox"
               checked={notificationsEnabled}
               onChange={(e) => updateSettings({ notificationsEnabled: e.target.checked })}
-              className="h-4 w-4 rounded accent-accent-purple"
+              className="h-4 w-4 rounded accent-accent-purple shrink-0 ml-4 cursor-pointer"
             />
           </label>
 
-          <div className="p-2 flex items-center justify-between">
+          {/* Default Quiz Question Count */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 p-2">
             <div>
-              <p className="text-sm font-medium text-text-primary">Assessment Question Count</p>
-              <p className="text-xs text-text-muted">Default number of questions requested for quizzes (3-6)</p>
+              <p className="text-sm font-medium text-text-primary">Default Quiz Question Count</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Default number of questions requested for knowledge checks (3–6)
+              </p>
             </div>
             <select
               value={quizQuestionCount}
               onChange={(e) => updateSettings({ quizQuestionCount: Number(e.target.value) })}
-              className="input-field w-24 text-sm"
+              className="input-field w-36 text-sm shrink-0"
             >
-              <option value={3}>3 questions</option>
-              <option value={4}>4 questions</option>
-              <option value={5}>5 questions</option>
-              <option value={6}>6 questions</option>
+              <option value={3}>3 Questions</option>
+              <option value={4}>4 Questions</option>
+              <option value={5}>5 Questions</option>
+              <option value={6}>6 Questions</option>
             </select>
           </div>
         </div>
       </div>
-
-      {/* Local Storage Data Management */}
-      <div className="card space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-dark-elevated">
-          <Trash2 className="h-5 w-5 text-danger" />
-          <h3 className="font-semibold text-text-primary">Data Management & Persistence</h3>
-        </div>
-
-        <p className="text-xs text-text-secondary">
-          Export your notes, gamification level, and settings to a JSON backup, or reset browser storage.
-        </p>
-
-        <div className="flex flex-wrap gap-3">
-          <button onClick={handleExportAllState} className="btn-secondary text-xs">
-            <Download className="h-3.5 w-3.5" /> Backup User Data (JSON)
-          </button>
-          <button onClick={() => setShowClearConfirm(true)} className="btn-danger text-xs">
-            <RotateCcw className="h-3.5 w-3.5" /> Clear Browser Storage
-          </button>
-        </div>
-      </div>
-
-      {/* Platform & Research Metadata */}
-      <div className="card bg-dark-secondary/60 border-dark-elevated">
-        <div className="flex items-start gap-3">
-          <Info className="h-5 w-5 text-accent-purple shrink-0 mt-0.5" />
-          <div className="text-xs text-text-secondary space-y-1">
-            <p className="font-semibold text-text-primary">SkillTree Research Platform</p>
-            <p>Master's Research Project: Adaptive Learning Platform for Skill-Building</p>
-            <p>
-              Backend API Target:{' '}
-              <code className="text-accent-cyan">
-                {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000 (proxied via /api)'}
-              </code>
-            </p>
-            <p>Embedding: mxbai-embed-large | Chat / DAG: qwen3.5:4b | Knowledge Tracing: Bayesian Knowledge Tracing (BKT)</p>
-          </div>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={showClearConfirm}
-        onClose={() => setShowClearConfirm(false)}
-        onConfirm={handleClearAllData}
-        title="Clear All Local Browser Data?"
-        message="This will reset your local XP, levels, streaks, notes, and preferences. Backend SQLite skill trees and quiz databases will remain intact."
-        confirmLabel="Clear Data"
-        variant="danger"
-      />
     </div>
   );
 }

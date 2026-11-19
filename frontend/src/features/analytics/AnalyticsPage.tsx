@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
@@ -12,12 +13,11 @@ import {
   Cell,
   CartesianGrid,
 } from 'recharts';
-import { BarChart3, TrendingUp, CheckCircle2, Brain, AlertCircle, Info } from 'lucide-react';
+import { BarChart3, TrendingUp, CheckCircle2, Brain, AlertCircle, ArrowRight } from 'lucide-react';
 import { useTreeList } from '@/hooks/useTreeQueries';
 import { treesApi, quizzesApi } from '@/api';
 import { useGamificationStore } from '@/stores';
 import { LoadingSpinner, EmptyState, ErrorMessage } from '@/components/ui';
-import { formatPercent } from '@/lib/utils';
 import type { TreeDetail, QuizHistoryItem } from '@/types';
 
 const COLORS = ['#8B5CF6', '#22D3EE', '#22C55E', '#F59E0B', '#EF4444', '#EC4899'];
@@ -48,11 +48,12 @@ export default function AnalyticsPage() {
     queryFn: async () => {
       if (treeIds.length === 0) return [];
       const results = await Promise.allSettled(treeIds.map((id) => quizzesApi.getHistory(id)));
-      const combined: (QuizHistoryItem & { treeTitle: string })[] = [];
+      const combined: (QuizHistoryItem & { treeTitle: string; treeId: string })[] = [];
       results.forEach((r, i) => {
         if (r.status === 'fulfilled' && r.value) {
           const title = trees?.[i]?.title || treeIds[i];
-          r.value.forEach((q) => combined.push({ ...q, treeTitle: title }));
+          const tId = treeIds[i];
+          r.value.forEach((q) => combined.push({ ...q, treeTitle: title, treeId: tId }));
         }
       });
       return combined;
@@ -109,17 +110,74 @@ export default function AnalyticsPage() {
     }));
   }, [allQuizzes]);
 
-  const weakTopics = useMemo(() => {
-    if (!allQuizzes) return [];
-    const missedCounts: Record<string, number> = {};
+  const knowledgeGaps = useMemo(() => {
+    if (!allQuizzes || allQuizzes.length === 0) return [];
+
+    const gapsMap = new Map<
+      string,
+      {
+        concept: string;
+        treeId?: string;
+        nodeId?: string;
+        scores: number[];
+        count: number;
+      }
+    >();
+
     allQuizzes.forEach((q) => {
-      q.missed_concepts.forEach((c) => {
-        if (c) missedCounts[c] = (missedCounts[c] || 0) + 1;
-      });
+      const isLowScore = q.score < 0.75;
+      const hasMissed = Array.isArray(q.missed_concepts) && q.missed_concepts.length > 0;
+
+      // 1. Process specific missed concepts from questions
+      if (hasMissed) {
+        q.missed_concepts.forEach((concept) => {
+          if (!concept || !concept.trim()) return;
+          const trimmed = concept.trim();
+          const existing = gapsMap.get(trimmed);
+          if (existing) {
+            existing.count += 1;
+            existing.scores.push(Math.round(q.score * 100));
+            if (!existing.treeId && q.treeId) existing.treeId = q.treeId;
+            if (!existing.nodeId && q.node_id) existing.nodeId = q.node_id;
+          } else {
+            gapsMap.set(trimmed, {
+              concept: trimmed,
+              treeId: q.treeId,
+              nodeId: q.node_id,
+              scores: [Math.round(q.score * 100)],
+              count: 1,
+            });
+          }
+        });
+      }
+
+      // 2. If quiz scored below 75% and its concept is not already captured
+      if (isLowScore) {
+        const conceptName = (q.title && q.title.trim()) || q.node_id;
+        if (conceptName && !gapsMap.has(conceptName)) {
+          gapsMap.set(conceptName, {
+            concept: conceptName,
+            treeId: q.treeId,
+            nodeId: q.node_id,
+            scores: [Math.round(q.score * 100)],
+            count: 1,
+          });
+        }
+      }
     });
-    return Object.entries(missedCounts)
-      .map(([concept, count]) => ({ concept, count }))
-      .sort((a, b) => b.count - a.count)
+
+    return Array.from(gapsMap.values())
+      .map((item) => ({
+        concept: item.concept,
+        treeId: item.treeId,
+        nodeId: item.nodeId,
+        score:
+          item.scores.length > 0
+            ? Math.round(item.scores.reduce((a, b) => a + b, 0) / item.scores.length)
+            : undefined,
+        count: item.count,
+      }))
+      .sort((a, b) => b.count - a.count || (a.score ?? 100) - (b.score ?? 100))
       .slice(0, 5);
   }, [allQuizzes]);
 
@@ -297,45 +355,85 @@ export default function AnalyticsPage() {
               <AlertCircle className="h-4 w-4 text-warning" />
             </div>
             <p className="text-xs text-text-secondary mb-4">
-              Concepts most frequently missed across assessment attempts, targeted for adaptive remediation.
+              Concepts identified from assessment attempts that need further review.
             </p>
-            {weakTopics.length > 0 ? (
+
+            {/* Condition 1 — No quizzes completed */}
+            {!allQuizzes || allQuizzes.length === 0 ? (
+              <div className="py-8 text-center border border-dashed border-dark-elevated rounded-lg bg-dark-secondary/30">
+                <p className="text-sm text-text-muted">
+                  Complete a quiz to identify areas for improvement.
+                </p>
+              </div>
+            ) : knowledgeGaps.length === 0 ? (
+              /* Condition 2 — Quizzes completed, no knowledge gaps */
+              <div className="py-8 text-center border border-dashed border-dark-elevated rounded-lg bg-dark-secondary/30">
+                <p className="text-sm text-text-muted">
+                  No areas for improvement identified yet.
+                </p>
+              </div>
+            ) : (
+              /* Condition 3 — Knowledge gaps detected */
               <div className="space-y-2.5">
-                {weakTopics.map((item, idx) => (
+                {knowledgeGaps.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-dark-primary border border-dark-elevated text-xs"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-dark-primary border border-dark-elevated gap-2 text-xs"
                   >
-                    <span className="font-medium text-text-primary">{item.concept}</span>
-                    <span className="badge bg-danger/10 text-danger font-semibold">
-                      Missed {item.count}x
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-text-primary truncate">
+                        {item.concept}
+                      </span>
+                      <span className="badge bg-warning/10 text-warning font-medium text-[11px] shrink-0">
+                        Needs Review
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
+                      {item.score !== undefined && (
+                        <span className="text-text-muted">
+                          Score:{' '}
+                          <span
+                            className={
+                              item.score < 75
+                                ? 'text-danger font-semibold'
+                                : 'text-text-secondary font-medium'
+                            }
+                          >
+                            {item.score}%
+                          </span>
+                        </span>
+                      )}
+                      {item.count > 1 && (
+                        <span className="badge bg-danger/10 text-danger font-semibold">
+                          Missed {item.count}x
+                        </span>
+                      )}
+                      {item.treeId && item.nodeId ? (
+                        <Link
+                          to={`/trees/${item.treeId}/learn/${item.nodeId}`}
+                          className="text-accent-purple hover:text-accent-purple/80 font-medium inline-flex items-center gap-1 transition-colors"
+                        >
+                          Review Concept
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      ) : item.treeId ? (
+                        <Link
+                          to={`/trees/${item.treeId}`}
+                          className="text-accent-purple hover:text-accent-purple/80 font-medium inline-flex items-center gap-1 transition-colors"
+                        >
+                          View Tree
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-xs text-text-muted italic py-6 text-center">
-                No recurring knowledge gaps identified. Excellent conceptual grasp!
-              </p>
             )}
           </div>
         </div>
       )}
-
-      {/* Research Integrity & Data Provenance Notice */}
-      <div className="card bg-dark-secondary/60 border-dark-elevated">
-        <div className="flex items-start gap-3">
-          <Info className="h-5 w-5 text-accent-cyan shrink-0 mt-0.5" />
-          <div className="text-xs text-text-secondary space-y-1">
-            <p className="font-semibold text-text-primary">Research Data Provenance & Grounding</p>
-            <p>
-              Skill tree progress and node states are synchronized live with the backend SQLite database (
-              <code className="text-accent-cyan">GET /trees/{'{tree_id}'}</code>). Quiz scores and added nodes reflect real outputs from the Bayesian Knowledge Tracing engine (
-              <code className="text-accent-cyan">knowledge_tracer.py</code>). XP, streaks, and local levels are tracked client-side via versioned browser storage.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

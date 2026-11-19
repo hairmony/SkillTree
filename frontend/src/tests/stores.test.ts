@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useGamificationStore, useSettingsStore, useNotesStore } from '@/stores';
+import { useGamificationStore, useSettingsStore } from '@/stores';
 
 describe('Zustand Stores', () => {
   beforeEach(() => {
@@ -8,11 +8,12 @@ describe('Zustand Stores', () => {
   });
 
   describe('useGamificationStore', () => {
-    it('initializes with level 1 and 0 XP', () => {
+    it('initializes with level 1 and 0 XP and exactly 6 achievements', () => {
       const state = useGamificationStore.getState();
       expect(state.level).toBe(1);
       expect(state.xp).toBe(0);
       expect(state.streakDays).toBe(0);
+      expect(state.achievements.length).toBe(6);
     });
 
     it('adds XP and levels up at 100 XP', () => {
@@ -26,15 +27,15 @@ describe('Zustand Stores', () => {
       expect(useGamificationStore.getState().level).toBe(2);
     });
 
-    it('unlocks First Step achievement on first completed lesson', () => {
+    it('unlocks Learning Starter on first completed lesson', () => {
       const store = useGamificationStore.getState();
       store.recordLessonCompleted('tree-a', 'node-1');
 
       const state = useGamificationStore.getState();
       expect(state.lessonsCompleted).toBe(1);
       expect(state.completedConceptIds).toContain('tree-a:node-1');
-      const firstStep = state.achievements.find((a) => a.id === 'first_step');
-      expect(firstStep?.unlockedAt).not.toBeNull();
+      const starter = state.achievements.find((a) => a.id === 'learning_starter');
+      expect(starter?.unlockedAt).not.toBeNull();
     });
 
     it('prevents duplicate XP when completing the same lesson multiple times', () => {
@@ -57,7 +58,7 @@ describe('Zustand Stores', () => {
       expect(useGamificationStore.getState().lessonsCompleted).toBe(countAfterFirst + 1);
     });
 
-    it('awards extra XP for perfect quiz score and prevents duplicate quiz XP', () => {
+    it('awards extra XP for perfect quiz score and unlocks Academic Excellence achievement', () => {
       const store = useGamificationStore.getState();
       store.recordQuizPassed(1.0, 'tree-a', 'node-1');
 
@@ -66,10 +67,11 @@ describe('Zustand Stores', () => {
       expect(state.perfectQuizzes).toBe(1);
       expect(state.xp).toBe(100);
       expect(state.passedQuizIds).toContain('tree-a:node-1');
-      const perf = state.achievements.find((a) => a.id === 'perfectionist');
-      expect(perf?.unlockedAt).not.toBeNull();
 
-      // Repeat the same passed quiz
+      const excellence = state.achievements.find((a) => a.id === 'academic_excellence');
+      expect(excellence?.unlockedAt).not.toBeNull();
+
+      // Repeat the same passed quiz: prevents duplicate base XP
       store.recordQuizPassed(1.0, 'tree-a', 'node-1');
       const stateAfterRepeat = useGamificationStore.getState();
       expect(stateAfterRepeat.quizzesPassed).toBe(1);
@@ -85,6 +87,18 @@ describe('Zustand Stores', () => {
       // Repeat on same day: streak remains 1
       store.recordLessonCompleted('tree-a', 'node-2');
       expect(useGamificationStore.getState().streakDays).toBe(1);
+    });
+
+    it('awards XP and unlocks Curriculum Mastery when completing an entire tree', () => {
+      const store = useGamificationStore.getState();
+      store.recordTreeCompleted();
+
+      const state = useGamificationStore.getState();
+      expect(state.treesCompleted).toBe(1);
+      expect(state.xp).toBe(200);
+
+      const mastery = state.achievements.find((a) => a.id === 'curriculum_mastery');
+      expect(mastery?.unlockedAt).not.toBeNull();
     });
   });
 
@@ -104,31 +118,13 @@ describe('Zustand Stores', () => {
       store.updateSettings({ reducedMotion: true });
       expect(useSettingsStore.getState().reducedMotion).toBe(true);
     });
-  });
 
-  describe('useNotesStore', () => {
-    it('creates, updates, and deletes personal notes', () => {
-      const store = useNotesStore.getState();
-      const initialCount = store.notes.length;
+    it('updates assessment question count preference', () => {
+      const store = useSettingsStore.getState();
+      expect(store.quizQuestionCount).toBe(5);
 
-      const created = store.addNote({
-        title: 'Eigenvalues in Quantum Mechanics',
-        content: 'Eigenvalues correspond to measurable energy levels.',
-        treeId: 'quantum',
-        nodeId: 'eigen',
-        treeName: 'Quantum Mechanics',
-        nodeName: 'Eigenstates',
-      });
-
-      expect(created.id).toBeTruthy();
-      expect(useNotesStore.getState().notes.length).toBe(initialCount + 1);
-
-      store.updateNote(created.id, { content: 'Updated note content.' });
-      const updated = useNotesStore.getState().notes.find((n) => n.id === created.id);
-      expect(updated?.content).toBe('Updated note content.');
-
-      store.deleteNote(created.id);
-      expect(useNotesStore.getState().notes.find((n) => n.id === created.id)).toBeUndefined();
+      store.updateSettings({ quizQuestionCount: 3 });
+      expect(useSettingsStore.getState().quizQuestionCount).toBe(3);
     });
   });
 });

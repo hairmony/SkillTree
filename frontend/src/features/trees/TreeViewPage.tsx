@@ -207,7 +207,7 @@ function NodeDetailPanel({
   );
 
   return (
-    <div className="w-88 sm:w-96 bg-dark-secondary border-l border-dark-elevated p-5 overflow-y-auto flex flex-col justify-between">
+    <div className="w-80 sm:w-96 bg-dark-secondary border-l border-dark-elevated p-5 overflow-y-auto flex flex-col justify-between">
       <div className="space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-dark-elevated">
           <h3 className="text-base font-semibold text-text-primary">Concept Details</h3>

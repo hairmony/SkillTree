@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -6,6 +6,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   ArrowLeft,
+  ArrowRight,
   Brain,
   CheckCircle2,
   Copy,
@@ -16,17 +17,19 @@ import {
   Video,
   Globe,
   GraduationCap,
-  Plus,
   ChevronDown,
   ChevronRight,
+  GitFork,
+  AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
 import { useNodeContent } from '@/hooks/useContentQueries';
 import { useTree, useMarkMastered } from '@/hooks/useTreeQueries';
-import { useGamificationStore, useNotesStore } from '@/stores';
-import { LoadingSpinner, ErrorMessage, Badge } from '@/components/ui';
+import { useGamificationStore } from '@/stores';
+import { LoadingSpinner, ErrorMessage, Badge, ProgressBar } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { ContentSource } from '@/types';
+import type { ContentSource, TreeNode } from '@/types';
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -58,31 +61,42 @@ const sourceTypeIcons: Record<string, React.ElementType> = {
 function SourceCard({ source }: { source: ContentSource }) {
   const Icon = sourceTypeIcons[source.type] || Globe;
   return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-dark-primary border border-dark-elevated">
-      <div className="h-8 w-8 rounded-lg bg-dark-elevated flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-text-secondary" />
+    <div className="flex items-start gap-3 p-3.5 rounded-xl bg-dark-primary border border-dark-elevated transition-colors hover:border-accent-purple/30">
+      <div className="h-9 w-9 rounded-lg bg-dark-elevated flex items-center justify-center shrink-0">
+        <Icon className="h-4 w-4 text-accent-cyan" />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-1">
           <Badge
             variant={
-              source.type === 'video' ? 'danger' : source.type === 'paper' ? 'purple' : 'cyan'
+              source.type === 'video'
+                ? 'danger'
+                : source.type === 'paper'
+                ? 'purple'
+                : source.type === 'wikipedia'
+                ? 'cyan'
+                : 'default'
             }
             className="text-[10px]"
           >
             {source.type}
           </Badge>
         </div>
-        <p className="text-sm text-text-primary mt-1 truncate">{source.title}</p>
-        {source.url && (
+        <p className="text-sm font-medium text-text-primary truncate" title={source.title}>
+          {source.title}
+        </p>
+        {source.url ? (
           <a
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-accent-cyan hover:underline flex items-center gap-1 mt-1"
+            className="text-xs text-accent-cyan hover:underline inline-flex items-center gap-1 mt-1 font-medium"
           >
-            Open reference <ExternalLink className="h-3 w-3" />
+            <span>{source.type === 'video' ? 'Watch Video at Timestamp' : 'View Source Document'}</span>
+            <ExternalLink className="h-3 w-3" />
           </a>
+        ) : (
+          <p className="text-xs text-text-muted mt-0.5 truncate">{source.source}</p>
         )}
       </div>
     </div>
@@ -96,12 +110,26 @@ export default function LessonPage() {
   const { data: tree } = useTree(treeId);
   const markMastered = useMarkMastered();
   const recordLessonCompleted = useGamificationStore((s) => s.recordLessonCompleted);
-  const { addNote, getNotesByNode } = useNotesStore();
-  const [newNote, setNewNote] = useState('');
-  const [expandedExamples, setExpandedExamples] = useState<Set<number>>(new Set());
+  const [expandedExamples, setExpandedExamples] = useState<Set<number>>(new Set([0])); // First example open by default
 
-  const node = tree?.nodes.find((n) => n.id === nodeId);
-  const notes = treeId && nodeId ? getNotesByNode(treeId, nodeId) : [];
+  const nodes = useMemo(() => tree?.nodes || [], [tree?.nodes]);
+  const currentIndex = nodes.findIndex((n) => n.id === nodeId);
+  const currentNode = currentIndex >= 0 ? nodes[currentIndex] : null;
+
+  const prevNode = currentIndex > 0 ? nodes[currentIndex - 1] : null;
+  const nextNode = currentIndex >= 0 && currentIndex < nodes.length - 1 ? nodes[currentIndex + 1] : null;
+
+  const incomingPrereqIds = useMemo(
+    () => (tree?.edges.filter((e) => e.child_id === nodeId) || []).map((e) => e.parent_id),
+    [tree?.edges, nodeId]
+  );
+  const prerequisites = useMemo(
+    () =>
+      incomingPrereqIds
+        .map((id) => nodes.find((n) => n.id === id))
+        .filter((n): n is TreeNode => Boolean(n)),
+    [incomingPrereqIds, nodes]
+  );
 
   const handleMarkComplete = () => {
     if (!treeId || !nodeId) return;
@@ -110,249 +138,360 @@ export default function LessonPage() {
       {
         onSuccess: () => {
           recordLessonCompleted(treeId, nodeId);
-          toast.success('Concept marked as complete!');
+          toast.success('Concept marked as complete! XP awarded.');
         },
         onError: (e) => toast.error((e as Error).message),
       }
     );
   };
 
-  const handleAddNote = () => {
-    if (!newNote.trim() || !treeId || !nodeId) return;
-    addNote({
-      title: `Note on ${node?.title || nodeId}`,
-      content: newNote.trim(),
-      treeId,
-      nodeId,
-      treeName: treeId,
-      nodeName: node?.title || nodeId,
-    });
-    setNewNote('');
-    toast.success('Note saved to IndexedDB/Storage');
-  };
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3">
+        <LoadingSpinner size="lg" label="Retrieving and preparing lesson content..." />
+        <p className="text-xs text-text-muted">
+          Grounding explanations in retrieved multimodal chunks and RAG index...
+        </p>
+      </div>
+    );
+  }
 
-  if (isLoading)
-    return <LoadingSpinner size="lg" label="Loading lesson content from RAG..." className="min-h-[60vh]" />;
-  if (error)
+  if (error) {
     return <ErrorMessage message={(error as Error).message} onRetry={() => window.location.reload()} />;
-  if (!content) return <ErrorMessage message="No content available for this concept" />;
+  }
+
+  if (!content) {
+    return <ErrorMessage message="No content available for this concept" />;
+  }
 
   return (
-    <div className="animate-fade-in space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate(`/trees/${treeId}`)} className="btn-ghost">
-          <ArrowLeft className="h-4 w-4" /> Back to Tree
-        </button>
+    <div className="animate-fade-in space-y-6 max-w-5xl mx-auto pb-12">
+      {/* Breadcrumb & Navigation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary border-b border-dark-elevated pb-3">
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/trees/${treeId}`}
+            className="flex items-center gap-1.5 text-text-muted hover:text-accent-purple transition-colors font-medium"
+          >
+            <GitFork className="h-3.5 w-3.5" />
+            <span>{treeId?.replace(/-/g, ' ')}</span>
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5 text-text-muted" />
+          <span className="text-text-primary font-semibold">{currentNode?.title || nodeId}</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {currentIndex >= 0 && (
+            <span className="text-text-muted">
+              Concept {currentIndex + 1} of {nodes.length}
+            </span>
+          )}
+          <Link
+            to={`/trees/${treeId}`}
+            className="btn-ghost text-xs py-1 px-2.5 flex items-center gap-1"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Tree Map
+          </Link>
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Main content */}
-        <div className="flex-1 min-w-0 space-y-6">
-          {/* Title card */}
-          <div className="card">
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant={node?.status === 'mastered' ? 'success' : 'purple'}>
-                    {node?.status === 'mastered' ? 'Mastered' : 'In Progress'}
-                  </Badge>
-                  {node?.kind !== 'core' && (
-                    <Badge variant={node?.kind === 'required' ? 'danger' : 'warning'}>
-                      {node?.kind}
-                    </Badge>
-                  )}
-                </div>
-                <h2 className="text-2xl font-bold text-text-primary">{node?.title || nodeId}</h2>
-                <p className="text-text-secondary mt-1">{node?.description}</p>
-                {node?.objectives && node.objectives.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">
-                      Target Objectives
-                    </h4>
-                    <ul className="space-y-1">
-                      {node.objectives.map((obj, i) => (
-                        <li key={i} className="text-sm text-text-secondary flex items-start gap-2">
-                          <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-accent-purple shrink-0" />
-                          {obj}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={handleMarkComplete}
-                  className="btn-secondary text-sm"
-                  disabled={markMastered.isPending || node?.status === 'mastered'}
+      {/* Main Concept Header Card */}
+      <div className="card space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="space-y-2 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant={
+                  currentNode?.status === 'mastered'
+                    ? 'success'
+                    : currentNode?.status === 'unlocked'
+                    ? 'purple'
+                    : 'default'
+                }
+              >
+                {currentNode?.status === 'mastered'
+                  ? 'Mastered'
+                  : currentNode?.status === 'unlocked'
+                  ? 'Unlocked & Available'
+                  : 'Locked'}
+              </Badge>
+
+              {currentNode?.kind !== 'core' && (
+                <Badge
+                  variant={currentNode?.kind === 'required' ? 'danger' : 'warning'}
+                  className="font-semibold"
                 >
-                  <CheckCircle2 className="h-4 w-4" /> Mark Complete
-                </button>
-                <Link to={`/trees/${treeId}/quiz/${nodeId}`} className="btn-primary text-sm">
-                  <Brain className="h-4 w-4" /> Take Quiz
-                </Link>
-              </div>
-            </div>
-          </div>
+                  {currentNode?.kind === 'required' ? 'Remediation Review Concept' : 'Optional Deep Dive'}
+                </Badge>
+              )}
 
-          {/* Lesson content */}
-          <div className="card prose prose-invert max-w-none">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const codeStr = String(children).replace(/\n$/, '');
-                  if (match) {
-                    return (
-                      <div className="relative group not-prose my-4">
-                        <CopyButton text={codeStr} />
-                        <SyntaxHighlighter
-                          style={vscDarkPlus}
-                          language={match[1]}
-                          PreTag="div"
-                          customStyle={{
-                            background: '#0B1020',
-                            borderRadius: '0.5rem',
-                            padding: '1rem',
-                            fontSize: '0.875rem',
-                            border: '1px solid #1E293B',
-                          }}
-                        >
-                          {codeStr}
-                        </SyntaxHighlighter>
-                      </div>
-                    );
-                  }
-                  return (
-                    <code
-                      className={cn(
-                        'bg-dark-primary px-1.5 py-0.5 rounded text-accent-cyan text-sm border border-dark-elevated',
-                        className
-                      )}
-                      {...props}
-                    >
-                      {children}
-                    </code>
-                  );
-                },
-                a({ href, children }) {
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent-cyan hover:underline"
-                    >
-                      {children}
-                    </a>
-                  );
-                },
-                table({ children }) {
-                  return (
-                    <div className="overflow-x-auto my-4">
-                      <table className="w-full text-left border-collapse border border-dark-elevated">
-                        {children}
-                      </table>
-                    </div>
-                  );
-                },
-              }}
-            >
-              {content.details}
-            </ReactMarkdown>
-          </div>
-
-          {/* Worked Examples */}
-          {content.examples.length > 0 && (
-            <div className="card">
-              <h3 className="text-lg font-semibold text-text-primary mb-4">Worked Examples</h3>
-              <div className="space-y-3">
-                {content.examples.map((example, i) => (
-                  <div key={i} className="rounded-lg bg-dark-primary border border-dark-elevated p-4">
-                    <button
-                      onClick={() => {
-                        const next = new Set(expandedExamples);
-                        if (next.has(i)) {
-                          next.delete(i);
-                        } else {
-                          next.add(i);
-                        }
-                        setExpandedExamples(next);
-                      }}
-                      className="flex items-center gap-2 w-full text-left font-medium text-text-primary"
-                    >
-                      {expandedExamples.has(i) ? (
-                        <ChevronDown className="h-4 w-4 text-accent-purple" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-text-muted" />
-                      )}
-                      <span>Example {i + 1}</span>
-                    </button>
-                    {expandedExamples.has(i) && (
-                      <div className="mt-3 text-sm text-text-secondary whitespace-pre-wrap pl-6 border-l border-accent-purple/30">
-                        {example}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Sources & Citations */}
-          {content.sources.length > 0 && (
-            <div className="card">
-              <h3 className="text-lg font-semibold text-text-primary mb-2">Grounding Sources & Citations</h3>
-              <p className="text-xs text-text-muted mb-4">
-                Materials retrieved via RAG and referenced during concept synthesis.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {content.sources.map((source, i) => (
-                  <SourceCard key={i} source={source} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Notes sidebar */}
-        <div className="w-full lg:w-80 shrink-0">
-          <div className="card sticky top-20">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-text-primary">Concept Notes</h3>
-              <Badge>{notes.length}</Badge>
-            </div>
-            <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
-              {notes.map((note) => (
-                <div
-                  key={note.id}
-                  className="p-2.5 rounded bg-dark-primary border border-dark-elevated text-xs text-text-secondary"
-                >
-                  <p className="whitespace-pre-wrap">{note.content}</p>
-                </div>
-              ))}
-              {notes.length === 0 && (
-                <p className="text-xs text-text-muted italic">No notes recorded for this concept.</p>
+              {currentNode?.mastery !== undefined && currentNode.mastery > 0 && (
+                <Badge variant="cyan">BKT Mastery: {Math.round(currentNode.mastery * 100)}%</Badge>
               )}
             </div>
-            <textarea
-              value={newNote}
-              onChange={(e) => setNewNote(e.target.value)}
-              placeholder="Record a personal thought or note..."
-              className="input-field text-xs min-h-[70px] resize-y mb-2"
-              rows={2}
-            />
-            <button
-              onClick={handleAddNote}
-              className="btn-secondary w-full text-xs"
-              disabled={!newNote.trim()}
+
+            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+              {currentNode?.title || nodeId}
+            </h1>
+            <p className="text-sm text-text-secondary leading-relaxed">{currentNode?.description}</p>
+          </div>
+
+          <div className="flex sm:flex-col gap-2 shrink-0">
+            <Link
+              to={`/trees/${treeId}/quiz/${nodeId}`}
+              className="btn-primary text-sm flex items-center justify-center gap-2 py-2.5 px-4 shadow-lg shadow-accent-purple/10"
             >
-              <Plus className="h-3 w-3" /> Save Note
-            </button>
+              <Brain className="h-4 w-4" />
+              <span>Take Quiz</span>
+            </Link>
+
+            {currentNode?.status !== 'mastered' && (
+              <button
+                onClick={handleMarkComplete}
+                className="btn-secondary text-xs flex items-center justify-center gap-1.5 py-2 px-3"
+                disabled={markMastered.isPending}
+                title="Mark completed without taking quiz"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Mark as Studied</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Remediation Note if Required */}
+        {currentNode?.kind === 'required' && (
+          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-danger/10 border border-danger/30 text-xs text-text-secondary">
+            <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-danger">Adaptive Remediation Review</p>
+              <p className="mt-0.5">
+                This concept was dynamically inserted into your learning tree by the adaptive Bayesian Knowledge Tracing engine to reinforce topics missed during your recent quiz attempt.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Prerequisites Summary */}
+        {prerequisites.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-dark-elevated text-xs">
+            <span className="text-text-muted font-medium">Prerequisites:</span>
+            {prerequisites.map((prereq) => (
+              <Link
+                key={prereq.id}
+                to={`/trees/${treeId}/learn/${prereq.id}`}
+                className="badge bg-dark-elevated hover:bg-dark-primary text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1"
+              >
+                {prereq.status === 'mastered' && <CheckCircle2 className="h-3 w-3 text-success" />}
+                <span>{prereq.title}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Target Objectives Section */}
+      {currentNode?.objectives && currentNode.objectives.length > 0 && (
+        <div className="card">
+          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
+            Learning Objectives
+          </h3>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {currentNode.objectives.map((obj, i) => (
+              <li
+                key={i}
+                className="text-xs text-text-secondary flex items-start gap-2 p-2 rounded-lg bg-dark-primary border border-dark-elevated/60"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-accent-purple shrink-0" />
+                <span>{obj}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Lesson Details (Markdown formatted explanation) */}
+      <div className="card space-y-4">
+        <h3 className="text-base font-semibold text-text-primary border-b border-dark-elevated pb-3">
+          Concept Overview & Technical Details
+        </h3>
+        <div className="prose prose-invert max-w-none text-text-secondary text-sm leading-relaxed">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              p({ children }) {
+                return <p className="mb-4 leading-relaxed text-text-secondary text-sm">{children}</p>;
+              },
+              code({ className, children, ...props }) {
+                const match = /language-(\w+)/.exec(className || '');
+                const codeStr = String(children).replace(/\n$/, '');
+                if (match) {
+                  return (
+                    <div className="relative group not-prose my-4">
+                      <CopyButton text={codeStr} />
+                      <SyntaxHighlighter
+                        style={vscDarkPlus}
+                        language={match[1]}
+                        PreTag="div"
+                        customStyle={{
+                          background: '#0B1020',
+                          borderRadius: '0.5rem',
+                          padding: '1rem',
+                          fontSize: '0.85rem',
+                          border: '1px solid #1E293B',
+                        }}
+                      >
+                        {codeStr}
+                      </SyntaxHighlighter>
+                    </div>
+                  );
+                }
+                return (
+                  <code
+                    className={cn(
+                      'bg-dark-primary px-1.5 py-0.5 rounded text-accent-cyan text-xs font-mono border border-dark-elevated',
+                      className
+                    )}
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                );
+              },
+              table({ children }) {
+                return (
+                  <div className="overflow-x-auto my-4">
+                    <table className="w-full text-left border-collapse border border-dark-elevated text-xs">
+                      {children}
+                    </table>
+                  </div>
+                );
+              },
+            }}
+          >
+            {content.details}
+          </ReactMarkdown>
+        </div>
+      </div>
+
+      {/* Worked Examples (Interactive Accordion) */}
+      {content.examples && content.examples.length > 0 && (
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between border-b border-dark-elevated pb-3">
+            <div>
+              <h3 className="text-base font-semibold text-text-primary">Worked Examples</h3>
+              <p className="text-xs text-text-muted mt-0.5">
+                Concrete step-by-step applications demonstrating this concept
+              </p>
+            </div>
+            <span className="text-xs text-text-muted">{content.examples.length} examples</span>
+          </div>
+
+          <div className="space-y-3">
+            {content.examples.map((example, i) => {
+              const isOpen = expandedExamples.has(i);
+              return (
+                <div key={i} className="rounded-xl bg-dark-primary border border-dark-elevated overflow-hidden transition-all">
+                  <button
+                    onClick={() => {
+                      const next = new Set(expandedExamples);
+                      if (isOpen) next.delete(i);
+                      else next.add(i);
+                      setExpandedExamples(next);
+                    }}
+                    className="flex items-center justify-between w-full p-4 text-left font-medium text-sm text-text-primary hover:bg-dark-elevated/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-6 w-6 rounded-md bg-accent-purple/10 text-accent-purple flex items-center justify-center text-xs font-bold">
+                        {i + 1}
+                      </div>
+                      <span>Example {i + 1}</span>
+                    </div>
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4 text-accent-purple" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-text-muted" />
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="p-4 pt-1 text-sm text-text-secondary whitespace-pre-wrap leading-relaxed border-t border-dark-elevated/50 bg-dark-card/30">
+                      {example}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Cited Grounding Sources & Multimedia */}
+      {content.sources && content.sources.length > 0 && (
+        <div className="card space-y-4">
+          <div className="border-b border-dark-elevated pb-3">
+            <h3 className="text-base font-semibold text-text-primary">Academic Grounding & Cited Sources</h3>
+            <p className="text-xs text-text-muted mt-0.5">
+              Verified sources retrieved via RAG and referenced during the AI generation of this lesson
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {content.sources.map((source, i) => (
+              <SourceCard key={i} source={source} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Curriculum Traversal Navigation Footer */}
+      <div className="flex items-center justify-between gap-4 pt-4 border-t border-dark-elevated">
+        {prevNode ? (
+          <Link
+            to={`/trees/${treeId}/learn/${prevNode.id}`}
+            className="btn-secondary text-xs flex items-center gap-1.5 py-2.5 px-3.5"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <div className="text-left">
+              <span className="block text-[10px] text-text-muted">Previous Concept</span>
+              <span className="font-semibold text-text-primary truncate max-w-[140px] block">
+                {prevNode.title}
+              </span>
+            </div>
+          </Link>
+        ) : (
+          <div />
+        )}
+
+        <div className="flex items-center gap-2">
+          <Link to={`/trees/${treeId}`} className="btn-secondary text-xs py-2.5 px-3">
+            <GitFork className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">View Tree Map</span>
+          </Link>
+
+          <Link
+            to={`/trees/${treeId}/quiz/${nodeId}`}
+            className="btn-primary text-xs flex items-center gap-1.5 py-2.5 px-4 font-semibold"
+          >
+            <Brain className="h-3.5 w-3.5" />
+            <span>Assess Concept (Quiz)</span>
+          </Link>
+        </div>
+
+        {nextNode ? (
+          <Link
+            to={`/trees/${treeId}/learn/${nextNode.id}`}
+            className="btn-secondary text-xs flex items-center gap-1.5 py-2.5 px-3.5"
+          >
+            <div className="text-right">
+              <span className="block text-[10px] text-text-muted">Next Concept</span>
+              <span className="font-semibold text-text-primary truncate max-w-[140px] block">
+                {nextNode.title}
+              </span>
+            </div>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        ) : (
+          <div />
+        )}
       </div>
     </div>
   );
