@@ -21,7 +21,7 @@ from ollama_client import embed
 import background
 import dag_generate
 import knowledge_tracer
-import messages
+import xp
 from quiz_generator import get_quiz_generator
 
 app = FastAPI(title="SkillTree")
@@ -462,7 +462,9 @@ def submit_quiz(quiz_id: int, req: SubmitRequest):
                            "chosen": text_of.get(chosen, chosen),
                            "correct": text_of.get(q["correct_option_id"], "")})
 
+    xp_before = xp.get_xp()
     score = database.submit_quiz(quiz_id, tree_id, node_id, results, req.answers)
+    xp_after = xp.get_xp()
 
     # Mastery (BKT) is still recorded, but no longer decides anything.
     history = database.get_attempts(tree_id, node_id)
@@ -486,6 +488,8 @@ def submit_quiz(quiz_id: int, req: SubmitRequest):
     return {
         "score": round(score, 3),
         "pass_score": PASS_SCORE,
+        "xp": {**xp_after, "gained": xp_after["xp"] - xp_before["xp"],
+               "level_up": xp_after["level"] > xp_before["level"]},
         "passed": not required,
         "mastery": round(mastery, 3),
         "results": graded,
@@ -513,6 +517,12 @@ def quiz_results(tree_id: str, node_id: str):
         "added": [{"id": i, "title": titles[i][0], "kind": titles[i][1]}
                   for i in quiz["added_nodes"] if i in titles],
     }
+
+
+@app.get("/xp")
+def get_xp():
+    """The learner's total XP and level (see xp.py)."""
+    return xp.get_xp()
 
 
 @app.get("/trees/{tree_id}/quizzes")
