@@ -470,6 +470,13 @@ progress::-webkit-progress-value {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: var(--card-gap);
+  margin-bottom: var(--card-gap);
+}
+/* in a grid, the grid's gap is the only spacing: cards drop their own margins,
+   so the space between cards is the same across and down */
+.cards > *,
+.metrics > * {
+  margin: 0;
 }
 .award .round {
   float: right;
@@ -735,9 +742,6 @@ legend {
   }
   .metric {
     padding: 14px;
-  }
-  .metrics {
-    gap: 9px;
   }
 }
 @media (max-width: 800px) {
