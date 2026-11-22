@@ -24,6 +24,8 @@ import knowledge_tracer
 import xp
 from quiz_generator import get_quiz_generator
 
+import messages
+
 app = FastAPI(title="SkillTree")
 app.add_middleware(
     CORSMiddleware,

@@ -75,6 +75,20 @@ def draft_to_dag(draft: Draft) -> DAG:
     has_parent = {e["child_id"] for e in edges}
     edges += [{"parent_id": root, "child_id": n["id"]} for n in nodes[1:]
               if n["id"] not in has_parent]
+
+    # Drop redundant edges (like its making A-C edge when A-B-C alreaady exists, yk?)
+    def reaches(start, target, skip):
+        stack = [e["child_id"] for e in edges if e["parent_id"] == start and e is not skip]
+        seen = set()
+        while stack:
+            x = stack.pop()
+            if x == target:
+                return True
+            if x not in seen:
+                seen.add(x)
+                stack += [e["child_id"] for e in edges if e["parent_id"] == x]
+        return False
+    edges = [e for e in edges if not reaches(e["parent_id"], e["child_id"], e)]
     return DAG.model_validate({"nodes": nodes, "edges": edges})
 
 
