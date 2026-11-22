@@ -8,7 +8,7 @@ import CreateTree from "./pages/CreateTree";
 import { Assessment, Results } from "./pages/Assessment";
 import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
 import { useTreeJob } from "./useTreeJob";
-import markUrl from "../assets/mark.svg";
+import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
 
 const primaryNav = [
@@ -205,7 +205,7 @@ function App() {
     <div className="app">
       <aside className={"sidebar " + (menu ? "open" : "")}>
         <a className="brand" href={url("dashboard")}>
-          <img src={markUrl} alt="" />
+          <img src={appIconUrl} alt="" />
           SkillTree
         </a>
         <div className="nav-title">WORKSPACE</div>
@@ -244,7 +244,7 @@ function App() {
             <Icon name="menu" />
           </button>
           <span>Workspace</span>
-          <Icon name="chevron" size={14} />
+          <Icon name="chevron" />
           <b>{titles[section] || "Page"}</b>
           <a className="header-profile" href={url("profile")}>
             <Avatar name={name} />

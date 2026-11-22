@@ -76,7 +76,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
         {metrics.map(([icon, value, label, color]) => (
           <div className="panel metric" key={label}>
             <span className={"round " + color}>
-              <Icon name={icon} size={18} />
+              <Icon name={icon} />
             </span>
             <strong>{value}</strong>
             <span>{label}</span>
@@ -212,19 +212,19 @@ export function Achievements({ trees, xp }) {
       "First steps",
       "Complete your first assessment.",
       attempts.length > 0,
-      "book",
+      "achievements/first-steps",
     ],
     [
       "On track",
       "Pass a quiz with a score of 75% or higher.",
       attempts.some((q) => q.score >= 0.75),
-      "target",
+      "achievements/on-track",
     ],
     [
       "Perfect recall",
       "Answer every question correctly in a quiz.",
       attempts.some((q) => q.score === 1),
-      "bolt",
+      "achievements/perfect-recall",
     ],
     [
       "Branch explorer",
@@ -232,7 +232,7 @@ export function Achievements({ trees, xp }) {
       trees.some((t) =>
         t.nodes.some((n) => n.kind === "optional" && n.status === "mastered"),
       ),
-      "map",
+      "achievements/branch-explorer",
     ],
     [
       "Back on track",
@@ -240,7 +240,7 @@ export function Achievements({ trees, xp }) {
       trees.some((t) =>
         t.nodes.some((n) => n.kind === "required" && n.status === "mastered"),
       ),
-      "leaf",
+      "achievements/back-on-track",
     ],
     [
       "Tree complete",
@@ -249,7 +249,7 @@ export function Achievements({ trees, xp }) {
         const core = t.nodes.filter((n) => n.kind === "core");
         return core.length > 0 && core.every((n) => n.status === "mastered");
       }),
-      "achievements",
+      "achievements/tree-complete",
     ],
   ];
   return (

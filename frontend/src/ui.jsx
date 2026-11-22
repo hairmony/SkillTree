@@ -29,33 +29,39 @@ export function useRoute() {
   }, []);
   return route;
 }
-// Every icon is its own file in frontend/assets/<name>.svg (24x24, stroke="currentColor").
-// Vite loads them as text at build time; <Icon> keeps the outer <svg> (size, colour)
-// and fills in the drawing from the file, so icons still take their colour from CSS.
-const files = import.meta.glob("../assets/*.svg", {
+// Every icon is its own file in frontend/assets/<name>.svg. Use currentColor for its
+// colours so it follows the CSS. Any style works (outline or filled, any viewBox, e.g.
+// Material Symbols): <Icon> keeps the file's own <svg> settings and only sets the size.
+// Sub-folders work too: assets/achievements/on-track.svg is <Icon name="achievements/on-track" />.
+const files = import.meta.glob("../assets/**/*.svg", {
   query: "?raw",
   import: "default",
   eager: true,
 });
+const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 const icons = Object.fromEntries(
-  Object.entries(files).map(([path, svg]) => [
-    path.match(/([^/]+)\.svg$/)[1],
-    svg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, ""), // just the drawing inside <svg>
-  ]),
+  Object.entries(files).map(([path, svg]) => {
+    const tag = svg.match(/<svg([^>]*)>/)?.[1] || "";
+    const attrs = {};
+    for (const [, key, value] of tag.matchAll(/([\w:-]+)="([^"]*)"/g))
+      if (!["xmlns", "width", "height", "class", "style"].includes(key))
+        attrs[camel(key)] = value; // e.g. stroke-width -> strokeWidth for React
+    return [
+      path.replace(/^\.\.\/assets\//, "").replace(/\.svg$/, ""), // e.g. "achievements/on-track"
+      { attrs, inner: svg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, "") },
+    ];
+  }),
 );
-export function Icon({ name, size = 20 }) {
+export function Icon({ name, size = 24 }) {
+  const icon = icons[name];
   return (
     <svg
       aria-hidden="true"
+      viewBox="0 0 24 24"
+      {...icon?.attrs}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      dangerouslySetInnerHTML={{ __html: icons[name] || "" }}
+      dangerouslySetInnerHTML={{ __html: icon?.inner || "" }}
     />
   );
 }
@@ -80,7 +86,7 @@ export function PageTitle({ label, title, children }) {
 export function CreateTreeAction() {
   return (
     <a className="button primary" href={url("create")}>
-      <Icon name="plus" size={17} />
+      <Icon name="add" />
       Create tree
     </a>
   );
@@ -116,7 +122,7 @@ export function TreeCard({ tree, onDelete, removing }) {
     <article className="panel tree-entry">
       <a className="tree-card" href={url("map", tree.id)}>
         <span className="iconbox">
-          <Icon name="map" />
+          <Icon name="map" size={36} />
         </span>
         <div>
           <h3>{tree.title}</h3>
@@ -134,7 +140,7 @@ export function TreeCard({ tree, onDelete, removing }) {
         title={removing === tree.id ? "Deleting…" : "Delete tree"}
         onClick={() => onDelete(tree)}
       >
-        <Icon name="trash" size={28} />
+        <Icon name="trash" />
       </button>
     </article>
   );

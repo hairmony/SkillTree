@@ -317,11 +317,12 @@ small {
 }
 .round,
 .iconbox {
-  width: 38px;
-  height: 38px;
+  flex: none; /* keep it square next to long tree titles */
+  width: 60px;
+  height: 60px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 14px;
 }
 .metric .round {
   grid-column: 2;
