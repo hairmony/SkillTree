@@ -4,9 +4,11 @@ import numpy as np
 from pydantic import BaseModel
 
 import database
-import messages
+
 import sources
 from ollama_client import chat_json, embed
+
+import messages # it wasn't working without this import
 
 CHUNK_CHARS = 800
 OVERLAP_CHARS = 150      # text repeated from the end of the previous chunk

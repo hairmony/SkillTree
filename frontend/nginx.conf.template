@@ -1,0 +1,9 @@
+server {
+  listen 80;
+  root /usr/share/nginx/html;
+  location /api/ {
+    proxy_pass ${BACKEND_ORIGIN}/;
+    proxy_read_timeout 600s;
+  }
+  location / { try_files $uri $uri/ /index.html; }
+}
