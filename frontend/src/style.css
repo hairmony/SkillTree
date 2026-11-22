@@ -513,12 +513,9 @@ summary + label {
   max-height: 260px;
 }
 .concept-graph {
+  /* size and card positions come from dagre (ConceptMap.jsx) */
   position: relative;
-  width: max-content;
-  min-width: 100%;
-  display: grid;
-  gap: 52px;
-  padding: 24px;
+  margin: 0 auto;
 }
 .concept-graph svg {
   position: absolute;
@@ -526,13 +523,8 @@ summary + label {
   height: 100%;
   pointer-events: none;
 }
-.concept-row {
-  display: flex;
-  justify-content: center;
-  align-items: start;
-  gap: 24px;
-}
 .concept-node {
+  position: absolute;
   z-index: 1;
   display: grid;
   align-content: center;
@@ -563,13 +555,6 @@ summary + label {
 .concept-node.new-concept {
   outline: 2px solid #dfbe7c;
   outline-offset: 2px;
-}
-.compact .concept-graph {
-  padding: 16px;
-  gap: 36px;
-}
-.compact .concept-row {
-  gap: 16px;
 }
 .compact .concept-node {
   width: 136px;
@@ -619,10 +604,11 @@ summary + label {
   margin: 0;
 }
 .delete-action {
-  font-size: 0.8rem;
+  display: grid;
+  place-items: center;
   color: #eab5ad;
   background: transparent;
-  padding: 5px 9px;
+  padding: 6px;
 }
 .growth {
   border-left: 3px solid var(--lime);

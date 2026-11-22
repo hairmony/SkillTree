@@ -29,26 +29,20 @@ export function useRoute() {
   }, []);
   return route;
 }
-const paths = {
-  dashboard: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
-  trees: "M5 3h14v5H5z M3 12h18 M5 16h14 M7 20h10",
-  map: "M5 4v15h14 M5 10h10 M15 7l4 3-4 3",
-  analytics: "M3 20h18 M6 16v-5 M12 16V4 M18 16V8",
-  achievements:
-    "M6 3h12v5a6 6 0 0 1-12 0z M6 5H3v2a5 5 0 0 0 4 5 M18 5h3v2a5 5 0 0 1-4 5 M12 14v5 M8 21h8",
-  book: "M12 6Q7 2 2 4v14q5-2 10 2 5-4 10-2V4q-5-2-10 2v14",
-  target: "M20 12a8 8 0 1 1-8-8 M16 12a4 4 0 1 1-4-4 M12 12l8-8",
-  leaf: "M4 19Q1 4 20 3q1 16-13 16 M5 20l9-10",
-  compass: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M15 8l-2 6-5 2 2-6z",
-  plus: "M12 5v14 M5 12h14",
-  settings: "M3 7h18 M3 17h18 M8 4v6 M16 14v6",
-  lock: "M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3",
-  check: "m4 12 5 5L20 6",
-  menu: "M3 6h18 M3 12h18 M3 18h18",
-  calendar: "M4 5h16v15H4z M4 10h16 M8 3v5 M16 3v5",
-  chevron: "m9 5 7 7-7 7",
-  bolt: "m14 2-9 12h6l-1 8 9-13h-6z",
-};
+// Every icon is its own file in frontend/assets/<name>.svg (24x24, stroke="currentColor").
+// Vite loads them as text at build time; <Icon> keeps the outer <svg> (size, colour)
+// and fills in the drawing from the file, so icons still take their colour from CSS.
+const files = import.meta.glob("../assets/*.svg", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const icons = Object.fromEntries(
+  Object.entries(files).map(([path, svg]) => [
+    path.match(/([^/]+)\.svg$/)[1],
+    svg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, ""), // just the drawing inside <svg>
+  ]),
+);
 export function Icon({ name, size = 20 }) {
   return (
     <svg
@@ -61,9 +55,8 @@ export function Icon({ name, size = 20 }) {
       strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
-    >
-      <path d={paths[name]} />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: icons[name] || "" }}
+    />
   );
 }
 export function Notice({ children }) {
@@ -138,9 +131,10 @@ export function TreeCard({ tree, onDelete, removing }) {
         className="delete-action"
         disabled={Boolean(removing)}
         aria-label={"Delete " + tree.title}
+        title={removing === tree.id ? "Deleting…" : "Delete tree"}
         onClick={() => onDelete(tree)}
       >
-        {removing === tree.id ? "Deleting…" : "Delete"}
+        <Icon name="trash" size={28} />
       </button>
     </article>
   );

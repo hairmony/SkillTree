@@ -8,6 +8,7 @@ import CreateTree from "./pages/CreateTree";
 import { Assessment, Results } from "./pages/Assessment";
 import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
 import { useTreeJob } from "./useTreeJob";
+import markUrl from "../assets/mark.svg";
 import "./style.css";
 
 const primaryNav = [
@@ -204,7 +205,7 @@ function App() {
     <div className="app">
       <aside className={"sidebar " + (menu ? "open" : "")}>
         <a className="brand" href={url("dashboard")}>
-          <img src="/mark.svg" alt="" />
+          <img src={markUrl} alt="" />
           SkillTree
         </a>
         <div className="nav-title">WORKSPACE</div>
