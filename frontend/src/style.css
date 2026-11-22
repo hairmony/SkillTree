@@ -1,4 +1,7 @@
 :root {
+  /* always reserve the scrollbar's space, so content sits in the same place on short
+     tabs (no scrollbar) and long tabs (scrollbar) */
+  scrollbar-gutter: stable;
   color-scheme: dark;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   background: #101715;
@@ -111,7 +114,7 @@ small {
   min-height: 100vh;
 }
 .sidebar {
-  width: 224px;
+  width: 264px;
   flex: none;
   position: sticky;
   top: 0;
@@ -454,7 +457,7 @@ progress::-webkit-progress-value {
 }
 .pad {
   padding: 24px;
-  margin-bottom: 18px;
+  margin-bottom: var(--card-gap);
 }
 .pad h2,
 .pad h3 {
@@ -466,7 +469,7 @@ progress::-webkit-progress-value {
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 14px;
+  gap: var(--card-gap);
 }
 .award .round {
   float: right;
@@ -510,9 +513,6 @@ select {
 .search {
   /* full width of the page */
   margin-bottom: var(--card-gap);
-}
-.form {
-  max-width: 740px;
 }
 .form em {
   font-weight: 400;
@@ -613,17 +613,26 @@ summary + label {
 .experience {
   margin-bottom: var(--card-gap);
 }
-.experience > div {
+/* EXPERIENCE label on top, then one row: icon, "Level N", total XP (all centred on one line) */
+.experience > small {
+  display: block;
+  margin: 0 0 10px;
+}
+.experience-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
-.experience strong {
+.experience-icon {
+  display: flex; /* no extra line height, so it centres exactly with the text */
+  color: #e6c982; /* same gold as the old badge */
+}
+.experience-row h2 {
+  line-height: 1;
+}
+.experience-row strong {
   margin-left: auto;
   color: var(--lime);
-}
-.experience small {
-  margin: 0;
 }
 .experience progress {
   margin: 15px 0 5px;
@@ -692,9 +701,20 @@ li {
 .score {
   font-size: 2.7rem;
 }
-.hamburger,
 .scrim {
   display: none;
+}
+/* ☰ button in the top bar: opens/closes the sidebar on every screen size */
+.hamburger {
+  display: flex;
+  padding: 6px;
+  background: none;
+  border: 0;
+}
+@media (min-width: 801px) {
+  .app.sidebar-collapsed .sidebar {
+    display: none; /* content takes the full width */
+  }
 }
 fieldset {
   min-width: 0;

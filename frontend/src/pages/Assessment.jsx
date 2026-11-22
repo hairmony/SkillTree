@@ -186,7 +186,7 @@ export function Results({ tree, node, evaluation }) {
             )}
             {data.added.length > 0 && (
               <section className="growth">
-                <h2>Your learning tree has grown!</h2>
+                <h2>Your skill tree has grown!</h2>
                 <p>
                   {data.added.length} new{" "}
                   {data.added.length === 1 ? "concept" : "concepts"} to explore
@@ -262,7 +262,7 @@ function Continuation({ tree, node }) {
         {next
           ? next.title
           : done(tree) === tree.nodes.length
-            ? "Learning tree complete"
+            ? "Skill tree complete"
             : "No lesson is currently unlocked"}
       </h2>
       <p>

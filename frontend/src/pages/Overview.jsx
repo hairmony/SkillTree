@@ -12,13 +12,13 @@ import {
   url,
 } from "../ui";
 import { LABELS, TITLES } from "../labels";
-export function Dashboard({ trees, xp, onDelete, removing }) {
-  const current =
-    trees.find((t) => t.id === localStorage.getItem("recentTree")) || trees[0];
-  const next = current?.nodes.find((n) => n.status === "unlocked");
+import { ACHIEVEMENTS } from "../achievements";
+// Stat row (skill trees, concepts completed, quizzes taken, average score),
+// shown on the Dashboard and Analytics tabs.
+function Metrics({ trees }) {
   const quizzes = trees.flatMap((t) => t.history);
   const metrics = [
-    ["trees", trees.length, "Learning trees", "mint"],
+    ["trees", trees.length, "Skill trees", "mint"],
     [
       "book",
       trees.reduce((sum, t) => sum + done(t), 0),
@@ -36,6 +36,24 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
     ],
   ];
   return (
+    <div className="metrics">
+      {metrics.map(([icon, value, label, color]) => (
+        <div className="panel metric" key={label}>
+          <span className={"round " + color}>
+            <Icon name={icon} />
+          </span>
+          <strong>{value}</strong>
+          <span>{label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+export function Dashboard({ trees, xp, onDelete, removing }) {
+  const current =
+    trees.find((t) => t.id === localStorage.getItem("recentTree")) || trees[0];
+  const next = current?.nodes.find((n) => n.status === "unlocked");
+  return (
     <>
       <PageTitle {...TITLES.PAGES.dashboard}>
         {current && <CreateTreeAction />}
@@ -46,7 +64,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
         <div className="hero-copy">
           <small>
             <i />{" "}
-            {current ? "RECENT LEARNING TREE" : "START YOUR LEARNING PATH"}
+            {current ? "RECENT SKILL TREE" : "START YOUR LEARNING"}
           </small>
           <h2>{current?.title || "Build your first tree"}</h2>
           <p>
@@ -54,7 +72,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
               ? "Up next · " + next.title
               : current
                 ? "Explore your concept map and revisit lessons."
-                : "Choose a topic and grow your understanding, one concept at a time."}
+                : "Choose a topic to grow in, one step at a time."}
           </p>
           {current && (
             <p className="hero-progress">
@@ -76,21 +94,11 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
         )}
       </section>
       <Experience xp={xp} />
-      <div className="metrics">
-        {metrics.map(([icon, value, label, color]) => (
-          <div className="panel metric" key={label}>
-            <span className={"round " + color}>
-              <Icon name={icon} />
-            </span>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </div>
-        ))}
-      </div>
+      <Metrics trees={trees} />
       <div className="dashboard-bottom">
         <section>
           <div className="section-head">
-            <h2>My learning trees</h2>
+            <h2>My skill trees</h2>
             <a href={url("trees")}>View all</a>
           </div>
           {trees.slice(0, 3).map((t) => (
@@ -115,7 +123,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
             <h3>{next?.title || "Choose a concept"}</h3>
             <p>
               {next?.description ||
-                "Open a learning tree to explore its lessons."}
+                "Open a skill tree to explore its lessons."}
             </p>
             {current && (
               <a href={url("map", current.id)}>Explore learning map</a>
@@ -139,7 +147,7 @@ export function Trees({ trees, onDelete, removing }) {
       <input
         className="search"
         aria-label="Search trees"
-        placeholder="Search learning trees…"
+        placeholder="Search skill trees…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -170,8 +178,9 @@ export function Analytics({ trees }) {
   return (
     <>
       <PageTitle {...TITLES.PAGES.analytics} />
+      <Metrics trees={trees} />
       <label>
-        Learning tree
+        {TITLES.TAB_TITLES.trees}
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">All trees</option>
           {trees.map((t) => (
@@ -210,66 +219,29 @@ export function Analytics({ trees }) {
   );
 }
 export function Achievements({ trees, xp }) {
-  const attempts = trees.flatMap((t) => t.history);
-  const awards = [
-    [
-      "First steps",
-      "Complete your first assessment.",
-      attempts.length > 0,
-      "achievements/first-steps",
-    ],
-    [
-      "On track",
-      "Pass a quiz with a score of 75% or higher.",
-      attempts.some((q) => q.score >= 0.75),
-      "achievements/on-track",
-    ],
-    [
-      "Perfect recall",
-      "Answer every question correctly in a quiz.",
-      attempts.some((q) => q.score === 1),
-      "achievements/perfect-recall",
-    ],
-    [
-      "Branch explorer",
-      "Complete an optional follow-up concept.",
-      trees.some((t) =>
-        t.nodes.some((n) => n.kind === "optional" && n.status === "mastered"),
-      ),
-      "achievements/branch-explorer",
-    ],
-    [
-      "Back on track",
-      "Complete a required review concept.",
-      trees.some((t) =>
-        t.nodes.some((n) => n.kind === "required" && n.status === "mastered"),
-      ),
-      "achievements/back-on-track",
-    ],
-    [
-      "Tree complete",
-      "Finish all core concepts in one learning tree.",
-      trees.some((t) => {
-        const core = t.nodes.filter((n) => n.kind === "core");
-        return core.length > 0 && core.every((n) => n.status === "mastered");
-      }),
-      "achievements/tree-complete",
-    ],
-  ];
+  // the list itself lives in src/achievements.js
+  const quizzes = trees.flatMap((t) => t.history);
+  const awards = ACHIEVEMENTS.map((a) => ({
+    ...a,
+    unlocked: a.earned({ trees, quizzes, xp }),
+  }));
   return (
     <>
       <PageTitle {...TITLES.PAGES.achievements} />
       <Experience xp={xp} />
-      <p>{awards.filter((a) => a[2]).length} of 6 milestones earned</p>
+      <p>
+        {awards.filter((a) => a.unlocked).length} of {awards.length} milestones
+        earned
+      </p>
       <div className="cards">
-        {awards.map(([name, desc, earned, icon]) => (
-          <article className="panel pad award" key={name}>
-            <span className={"round " + (earned ? "gold" : "muted")}>
-              <Icon name={icon} />
+        {awards.map((a) => (
+          <article className="panel pad award" key={a.id}>
+            <span className={"round " + (a.unlocked ? "gold" : "muted")}>
+              <Icon name={"achievements/" + a.id} />
             </span>
-            <small>{earned ? "EARNED" : "LOCKED"}</small>
-            <h2>{name}</h2>
-            <p>{desc}</p>
+            <small>{a.unlocked ? "EARNED" : "LOCKED"}</small>
+            <h2>{a.name}</h2>
+            <p>{a.description}</p>
           </article>
         ))}
       </div>

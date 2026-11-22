@@ -43,7 +43,7 @@ const TAB_TITLES = {
 // Tab names and titles
 export const TITLES = {
   // browser tab
-  APP: "SkillTree · Learning workspace",
+  APP: "SkillTree · The Adaptive Learning Platform",
 
   // sidebar (WORKSPACE heading) and top bar (Workspace › …)
   WORKSPACE: "Workspace",

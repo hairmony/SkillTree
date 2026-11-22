@@ -102,17 +102,36 @@ export function CreateTreeAction() {
   );
 }
 
+// XP icon colour by level: blends smoothly between these, level 1 → level 50 (and beyond).
+const LEVEL_COLOURS = [
+  [1, "#9ccf8a"], // green
+  [12, "#6fc7c4"], // teal
+  [25, "#7aa8f0"], // blue
+  [38, "#b78af0"], // purple
+  [50, "#e6c982"], // gold
+];
+export function levelColour(level) {
+  const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  for (let i = 1; i < LEVEL_COLOURS.length; i++) {
+    const [l1, c1] = LEVEL_COLOURS[i - 1],
+      [l2, c2] = LEVEL_COLOURS[i];
+    if (level <= l2) {
+      const t = Math.max(0, (level - l1) / (l2 - l1));
+      const [a, b] = [hex(c1), hex(c2)];
+      return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * t)).join(",")})`;
+    }
+  }
+  return LEVEL_COLOURS[LEVEL_COLOURS.length - 1][1];
+}
 export function Experience({ xp }) {
   return (
     <section className="panel pad experience" aria-label="Experience points">
-      <div>
-        <span className="round gold">
+      <small>EXPERIENCE</small>
+      <div className="experience-row">
+        <span className="experience-icon" style={{ color: levelColour(xp.level) }}>
           <Icon name="bolt" />
         </span>
-        <div>
-          <small>EXPERIENCE</small>
-          <h2>Level {xp.level}</h2>
-        </div>
+        <h2>Level {xp.level}</h2>
         <strong>{xp.xp} total XP</strong>
       </div>
       <progress

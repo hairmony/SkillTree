@@ -22,7 +22,23 @@ function App() {
     [feedback, setFeedback] = useState(""),
     [removing, setRemoving] = useState(null),
     [loading, setLoading] = useState(true),
-    [menu, setMenu] = useState(false);
+    [menu, setMenu] = useState(false),
+    // desktop: sidebar closed with the ☰ button (remembered); phones use `menu` instead
+    [collapsed, setCollapsed] = useState(() => {
+      try {
+        return localStorage.getItem("sidebarCollapsed") === "1";
+      } catch {
+        return false;
+      }
+    });
+  const isPhone = () => window.matchMedia("(max-width: 800px)").matches;
+  function toggleNav() {
+    if (isPhone()) return setMenu(!menu); // slide-out menu
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem("sidebarCollapsed", collapsed ? "0" : "1");
+    } catch {}
+  }
   const [name, setName] = useState(
     () => localStorage.getItem("studentName") || "Student",
   );
@@ -180,11 +196,11 @@ function App() {
     body = (
       <Notice>
         This page is unavailable.{" "}
-        <a href={tree ? url("map", id) : url("trees")}>Open learning trees</a>
+        <a href={tree ? url("map", id) : url("trees")}>Open skill trees</a>
       </Notice>
     );
   return (
-    <div className="app">
+    <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className={"sidebar " + (menu ? "open" : "")}>
         <a className="brand" href={url("dashboard")}>
           <img src={appIconUrl} alt="" />
@@ -220,8 +236,8 @@ function App() {
           <button
             className="hamburger"
             aria-label="Toggle navigation"
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
+            aria-expanded={isPhone() ? menu : !collapsed}
+            onClick={toggleNav}
           >
             <Icon name="menu" />
           </button>
@@ -237,7 +253,7 @@ function App() {
           {job.status && (
             <Notice>
               {job.status.state === "done"
-                ? "Your learning tree is ready. "
+                ? "Your skill tree is ready. "
                 : ""}
               {job.status.message}{" "}
               {job.status.state === "done" && (

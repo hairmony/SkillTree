@@ -118,7 +118,7 @@ export default function KnowledgeGaps({ rows }) {
                       ) : (
                         <>
                           <p>The matching lesson is currently unavailable.</p>
-                          <a href={url("map", tree.id)}>View learning tree</a>
+                          <a href={url("map", tree.id)}>View skill tree</a>
                         </>
                       )}
                     </div>
