@@ -1,4 +1,5 @@
 import re
+import threading
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -152,14 +153,81 @@ def generate_tree(req: GenerateRequest):
     queue_unlocked(req.tree_id)
     return read_tree(req.tree_id)
 
+class CreateRequest(BaseModel):
+    topic: str
+    description: str = ""            # optional: what exactly the learner wants from it
+    text: str | None = None          # optional: the learner's own notes, added too
+    source: str = "your material"
+
+
+def build_tree(tree_id: str, topic: str, text: str | None, source: str,
+               description: str = "") -> None:
+    """Background: search sources, store them, generate the tree. Progress goes to
+    tree_jobs so the page can show it."""
+    def progress(message: str) -> None:
+        database.set_job(tree_id, topic, "running", message)
+
+    try:
+        counts = ingest.ingest_topic(tree_id, topic, progress, description)
+        if text and text.strip():
+            progress(messages.ADDING_NOTES)
+            ingest.ingest_text(tree_id, source, text)
+        if database.count_chunks(tree_id) == 0:
+            raise ValueError(messages.NO_SOURCES)
+        found = messages.found_summary(counts)
+        progress(messages.designing(found))
+        dag = dag_generate.generate_dag(tree_id, topic, description=description)
+        database.save_tree(tree_id, topic, dag)
+        database.reset_progress(tree_id)
+        queue_unlocked(tree_id)
+        database.set_job(tree_id, topic, "done", messages.done(found))
+    except httpx.ConnectError:
+        database.set_job(tree_id, topic, "failed", messages.OLLAMA_DOWN)
+    except httpx.ReadTimeout:
+        database.set_job(tree_id, topic, "failed", messages.OLLAMA_SLOW)
+    except ValueError as e:
+        database.set_job(tree_id, topic, "failed", str(e))
+    except Exception as e:  # noqa: BLE001 - report anything else instead of hanging
+        database.set_job(tree_id, topic, "failed", messages.unexpected(e))
+
+
+@app.post("/trees/create")
+def create_tree(req: CreateRequest):
+    """Start building a tree from just a topic: sources are searched automatically
+    (videos, peer-reviewed papers, Wikipedia/Wikibooks, web). Runs in the background;
+    poll GET /trees/{tree_id}/status."""
+    topic = req.topic.strip()
+    if not topic:
+        raise HTTPException(422, "give a topic")
+    tree_id = new_tree_id(topic)
+    database.set_job(tree_id, topic, "running", messages.STARTING)
+    threading.Thread(target=build_tree,
+                     args=(tree_id, topic, req.text, req.source, req.description.strip()),
+                     name=f"build-{tree_id}", daemon=True).start()
+    return {"tree_id": tree_id}
+
+
+@app.get("/trees/{tree_id}/status")
+def tree_status(tree_id: str):
+    job = database.get_job(tree_id)
+    if job is None:
+        if database.tree_exists(tree_id):
+            return {"tree_id": tree_id, "state": "done", "message": ""}
+        raise HTTPException(404, "tree not found")
+    return job
+
+
 def strip_passage_numbers(text: str) -> str:
     return re.sub(r"\s*\[\d+\]", "", text).strip()
 
 
-def source_link(source: str) -> str | None:
-    if source.startswith(("http://", "https://")):
-        return source
-    return None
+def source_link(c: dict) -> str | None:
+    """Link for a chunk's source; video links jump to the moment the chunk starts."""
+    url = c.get("url") or (c["source"] if c["source"].startswith(("http://", "https://"))
+                           else None)
+    if url and c.get("source_type") == "video" and c.get("start_seconds") is not None:
+        url += f"&t={int(c['start_seconds'])}s"
+    return url
 
 
 def with_sources(content: dict) -> dict:
@@ -169,11 +237,12 @@ def with_sources(content: dict) -> dict:
         c = chunks.get(cid)
         if c is None:
             continue
-        src = c["source"]
-        if src in seen:
+        key = c.get("url") or c["source"]
+        if key in seen:  # one entry per source; a video links to the first cited moment
             continue
-        seen.add(src)
-        sources.append({"source": src, "url": source_link(src)})
+        seen.add(key)
+        sources.append({"source": c["source"], "title": c.get("title") or c["source"],
+                        "type": c.get("source_type") or "text", "url": source_link(c)})
     return {"details": content["details"], "examples": content["examples"],
             "sources": sources}
 
@@ -261,7 +330,7 @@ def new_quiz(tree_id: str, node_id: str, num_questions: int = 5):
         except ValueError as e:
             raise HTTPException(422, str(e))
         quiz_id, ids = database.create_quiz(tree_id, node_id, questions)
-        quiz = {"id": quiz_id, "questions": [{"id": i, **q} for i, q in zip(ids, questions)]}
+        quiz = {"id": quiz_id, "questions": [{**q, "id": i} for i, q in zip(ids, questions)]}
     return {
         "quiz_id": quiz["id"],
         "node_id": node_id,

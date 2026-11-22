@@ -53,7 +53,18 @@ CREATE TABLE IF NOT EXISTS chunks (
     source TEXT NOT NULL,
     position INTEGER NOT NULL,
     text TEXT NOT NULL,
-    embedding BLOB NOT NULL
+    embedding BLOB NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'text',  -- video / paper / wikipedia / wikibooks / web / text
+    title TEXT,
+    url TEXT,
+    start_seconds REAL                         -- videos: where this chunk starts
+);
+CREATE TABLE IF NOT EXISTS tree_jobs (
+    tree_id TEXT PRIMARY KEY,
+    topic TEXT NOT NULL,
+    state TEXT NOT NULL,                       -- running / done / failed
+    message TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS node_content (
     tree_id TEXT NOT NULL,
@@ -114,20 +125,67 @@ def add_chunks(tree_id: str, source: str, chunks: list[str],
         )
 
 
+def add_doc_chunks(tree_id: str, source_type: str, title: str, url: str,
+                   chunks: list[str], starts: list[float | None],
+                   embeddings: list[list[float]]) -> None:
+    """Chunks from a found source, with where they came from."""
+    rows = [
+        (tree_id, url or title, i, text, np.asarray(emb, dtype=np.float32).tobytes(),
+         source_type, title, url, start)
+        for i, (text, start, emb) in enumerate(zip(chunks, starts, embeddings))
+    ]
+    with connect() as conn:
+        conn.executemany(
+            "INSERT INTO chunks (tree_id, source, position, text, embedding, source_type, "
+            "title, url, start_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+
+
+def count_chunks(tree_id: str) -> int:
+    with connect() as conn:
+        return conn.execute("SELECT COUNT(*) FROM chunks WHERE tree_id = ?",
+                            (tree_id,)).fetchone()[0]
+
+
+def set_job(tree_id: str, topic: str, state: str, message: str = "") -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO tree_jobs (tree_id, topic, state, message) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(tree_id) DO UPDATE SET state = excluded.state, "
+            "message = excluded.message, updated_at = CURRENT_TIMESTAMP",
+            (tree_id, topic, state, message),
+        )
+
+
+def get_job(tree_id: str) -> dict | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT topic, state, message, updated_at FROM tree_jobs WHERE tree_id = ?",
+            (tree_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {"tree_id": tree_id, "topic": row[0], "state": row[1], "message": row[2],
+            "updated_at": row[3]}
+
+
 def search_chunks(tree_id: str, query_embedding: list[float], k: int = 3) -> list[dict]:
     q = np.asarray(query_embedding, dtype=np.float32)
     q = q / np.linalg.norm(q)
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id, source, text, embedding FROM chunks WHERE tree_id = ?",
+            "SELECT id, source, text, embedding, source_type, title, url, start_seconds "
+            "FROM chunks WHERE tree_id = ?",
             (tree_id,),
         ).fetchall()
     scored = []
-    for chunk_id, source, text, blob in rows:
+    for chunk_id, source, text, blob, stype, title, url, start in rows:
         v = np.frombuffer(blob, dtype=np.float32)
         score = float(np.dot(q, v) / np.linalg.norm(v))
         scored.append({"id": chunk_id, "source": source, "text": text,
-                       "score": round(score, 4)})
+                       "source_type": stype, "title": title, "url": url,
+                       "start_seconds": start, "score": round(score, 4)})
     scored.sort(key=lambda r: r["score"], reverse=True)
     return scored[:k]
 
@@ -153,6 +211,8 @@ def init_db() -> None:
             "user_progress": [("completed", "INTEGER NOT NULL DEFAULT 0")],
             "quiz_attempts": [("chosen", "TEXT")],
             "quizzes": [("prepared", "INTEGER NOT NULL DEFAULT 0")],
+            "chunks": [("source_type", "TEXT NOT NULL DEFAULT 'text'"), ("title", "TEXT"),
+                       ("url", "TEXT"), ("start_seconds", "REAL")],
         }
         for table, columns in added.items():
             have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
@@ -166,12 +226,14 @@ def init_db() -> None:
 
 
 def tree_id_in_use(tree_id: str) -> bool:
-    """True if a tree, or reference text waiting for a tree, already has this id."""
+    """True if a tree, reference text waiting for a tree, or a tree being created
+    already has this id."""
     with connect() as conn:
         return conn.execute(
             "SELECT EXISTS(SELECT 1 FROM trees WHERE id = ?) "
-            "OR EXISTS(SELECT 1 FROM chunks WHERE tree_id = ?)",
-            (tree_id, tree_id),
+            "OR EXISTS(SELECT 1 FROM chunks WHERE tree_id = ?) "
+            "OR EXISTS(SELECT 1 FROM tree_jobs WHERE tree_id = ?)",
+            (tree_id, tree_id, tree_id),
         ).fetchone()[0] == 1
 
 
@@ -341,9 +403,11 @@ def get_chunks_by_ids(ids: list[int]) -> dict[int, dict]:
     marks = ",".join("?" * len(ids))
     with connect() as conn:
         rows = conn.execute(
-            f"SELECT id, source, text FROM chunks WHERE id IN ({marks})", ids
+            f"SELECT id, source, text, source_type, title, url, start_seconds FROM chunks "
+            f"WHERE id IN ({marks})", ids
         ).fetchall()
-    return {i: {"source": s, "text": t} for i, s, t in rows}
+    return {i: {"source": s, "text": t, "source_type": st, "title": ti, "url": u,
+                "start_seconds": ss} for i, s, t, st, ti, u, ss in rows}
 
 def create_quiz(tree_id: str, node_id: str, questions: list[dict],
                 prepared: bool = False) -> tuple[int, list[int]]:
@@ -539,6 +603,6 @@ def get_attempts(tree_id: str, node_id: str) -> list[bool]:
 def delete_tree(tree_id: str) -> None:
     with connect() as conn:
         for table in ("node_content", "user_progress", "chunks", "edges", "nodes",
-                      "quiz_questions", "quiz_attempts", "quizzes"):
+                      "quiz_questions", "quiz_attempts", "quizzes", "tree_jobs"):
             conn.execute(f"DELETE FROM {table} WHERE tree_id = ?", (tree_id,))
         conn.execute("DELETE FROM trees WHERE id = ?", (tree_id,))
