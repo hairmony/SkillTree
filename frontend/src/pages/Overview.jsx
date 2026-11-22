@@ -39,8 +39,9 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
       <PageTitle label="YOUR WORKSPACE" title="Learning dashboard">
         {current && <CreateTreeAction />}
       </PageTitle>
-      <section className="hero">
-        <div className="terrain" />
+      <section className={"hero" + (current ? " with-map" : "")}>
+        {/* no tree yet: decorative terrain; otherwise the recent tree's own map sits here */}
+        {!current && <div className="terrain" />}
         <div className="hero-copy">
           <small>
             <i />{" "}
@@ -54,6 +55,11 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
                 ? "Explore your concept map and revisit lessons."
                 : "Choose a topic and grow your understanding, one concept at a time."}
           </p>
+          {current && (
+            <p className="hero-progress">
+              {done(current)} of {current.nodes.length} concepts completed
+            </p>
+          )}
           {current ? (
             <a className="button light" href={url("map", current.id)}>
               View full tree
@@ -62,15 +68,12 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
             <CreateTreeAction />
           )}
         </div>
+        {current && (
+          <div className="hero-map">
+            <ConceptMap tree={current} compact />
+          </div>
+        )}
       </section>
-      {current && (
-        <section className="dashboard-map">
-          <p>
-            {done(current)} of {current.nodes.length} concepts completed
-          </p>
-          <ConceptMap tree={current} compact />
-        </section>
-      )}
       <Experience xp={xp} />
       <div className="metrics">
         {metrics.map(([icon, value, label, color]) => (

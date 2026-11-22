@@ -3,6 +3,7 @@
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   background: #101715;
   color: #f2f5ed;
+  --card-gap: 20px; /* space between cards on a page, vertically and side by side */
   --panel: #19211e;
   --border: #303c35;
   --muted: #acb8af;
@@ -244,6 +245,7 @@ small {
   border-radius: 16px;
   padding: 34px 34px;
   min-height: 218px;
+  margin-bottom: var(--card-gap);
   display: flex;
   align-items: center;
 }
@@ -257,6 +259,36 @@ small {
 .hero-copy {
   max-width: 64%;
   text-shadow: 0 2px 10px #162e24;
+}
+/* recent tree: text on the left, that tree's concept map on the right */
+.hero.with-map {
+  gap: 28px;
+  align-items: stretch;
+  min-height: 300px;
+}
+.hero.with-map .hero-copy {
+  flex: 1 1 0;
+  max-width: none;
+  align-self: center;
+}
+.hero-map {
+  flex: 2 1 0; /* about two thirds of the card */
+  min-width: 0;
+  position: relative;
+  /* margin: -34px -34px -34px 0; */
+}
+.hero-map .graph-scroll {
+  /* fill that space exactly; the map scrolls inside if the tree is bigger */
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  max-height: none;
+  border-width: 0 0 0 1px; /* just a divider line next to the text */
+  border-radius: 0; /* the card's own rounded corners clip it */
+}
+.hero p.hero-progress {
+  margin-top: -12px;
+  font-size: 0.9rem;
 }
 .hero-copy small {
   display: flex;
@@ -293,8 +325,8 @@ small {
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 20px 0 30px;
+  gap: var(--card-gap);
+  margin: 0 0 var(--card-gap);
 }
 .metric {
   display: grid;
@@ -353,7 +385,7 @@ small {
 .lesson-cols {
   display: grid;
   grid-template-columns: 1.45fr 1fr;
-  gap: 22px;
+  gap: var(--card-gap);
 }
 .section-head {
   margin-bottom: 13px;
@@ -573,6 +605,9 @@ summary + label {
 .lesson-map .graph-scroll {
   margin: 14px 0 0;
 }
+.experience {
+  margin-bottom: var(--card-gap);
+}
 .experience > div {
   display: flex;
   align-items: center;
@@ -596,7 +631,7 @@ summary + label {
 .tree-entry {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: var(--card-gap);
   padding-right: 12px;
 }
 .tree-entry .tree-card {
@@ -618,9 +653,6 @@ summary + label {
 .xp-gain {
   color: var(--lime);
   font-weight: 700;
-}
-.dashboard-map {
-  margin: 14px 0;
 }
 .notice > button,
 .notice > a {
@@ -709,6 +741,22 @@ legend {
   }
   .hero {
     padding: 25px;
+  }
+  .hero.with-map {
+    flex-direction: column; /* narrow screens: map goes under the text */
+  }
+  .hero.with-map .hero-copy,
+  .hero-map {
+    flex: none;
+  }
+  .hero-map {
+    margin: 0; /* stacked under the text: normal spacing, no edge-to-edge */
+  }
+  .hero-map .graph-scroll {
+    position: static;
+    height: 260px;
+    border-width: 1px;
+    border-radius: 12px;
   }
   .dashboard-bottom,
   .lesson-cols {
