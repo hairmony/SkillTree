@@ -86,7 +86,7 @@ export function Assessment({ tree, node, applyGrade }) {
   return (
     <>
       <a href={url("lesson", tree.id, node.id)}>‹ Back to lesson</a>
-      <PageTitle label="ASSESSMENT" title={node.title} />
+      <PageTitle title={node.title} />
       {!draft ? (
         <div className="panel pad form">
           <h2>Check your understanding</h2>
@@ -168,7 +168,7 @@ export function Results({ tree, node, evaluation }) {
   return (
     <>
       <a href={url("map", tree.id)}>‹ Learning map</a>
-      <PageTitle label="ASSESSMENT REVIEW" title={node.title} />
+      <PageTitle title={node.title} />
       {!data ? (
         <ReadState error={error} reload={reload} />
       ) : (

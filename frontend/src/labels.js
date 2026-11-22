@@ -31,3 +31,47 @@ export const LABELS = {
   TRY_AGAIN: "Try again",
   RETRY_CONNECTION: "Retry Connection",
 };
+
+// sidebar tabs. Also used for the top bar and the small label above page headings.
+const TAB_TITLES = {
+  dashboard: "Dashboard",
+  trees: "Skill Trees",
+  analytics: "Analytics",
+  achievements: "Achievements",
+};
+
+// Tab names and titles
+export const TITLES = {
+  // browser tab
+  APP: "SkillTree · Learning workspace",
+
+  // sidebar (WORKSPACE heading) and top bar (Workspace › …)
+  WORKSPACE: "Workspace",
+
+  TAB_TITLES,
+
+  // the current page's name in the top bar ("Workspace › …").
+  TOPBAR: {
+    ...TAB_TITLES,
+    map: "Learning map",
+    lesson: "Lesson",
+    quiz: "Assessment",
+    results: "Answer review",
+    create: LABELS.CREATE_TREE,
+    profile: "My Profile",
+    settings: "Settings",
+    missing: "Page",
+  },
+
+  // page headings. The small label above it is the page's sidebar tab from TAB_TITLES, added automatically. Tree, lesson and quiz pages show the tree/concept name as their title
+  PAGES: {
+    dashboard: { title: "My Dashboard" },
+    trees: { title: "My Skill Trees" },
+    analytics: { title: "My Analytics" },
+    achievements: { title: "My Achievements" },
+
+    create: { title: "Create My Tree" },
+    profile: { title: "My Profile" },
+    settings: { title: "Settings" },
+  },
+};

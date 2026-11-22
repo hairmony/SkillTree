@@ -6,7 +6,7 @@ import { LABELS } from "../labels";
 export function LearningMap({ tree, added }) {
   return (
     <>
-      <PageTitle label="LEARNING MAP" title={tree.title} />
+      <PageTitle title={tree.title} />
       <p>
         {done(tree)} of {tree.nodes.length} concepts completed
       </p>
@@ -101,7 +101,7 @@ export function Lesson({ tree, node }) {
   return (
     <>
       <a href={url("map", tree.id)}>‹ {tree.title}</a>
-      <PageTitle label="LESSON" title={node.title} />
+      <PageTitle title={node.title} />
       <p>{node.description}</p>
       <div className="lesson-cols">
         <article className="panel pad">

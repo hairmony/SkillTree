@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { LABELS } from "./labels";
+import { LABELS, TITLES } from "./labels";
 export const percent = (value) => Math.round(value * 100) + "%";
 export const done = (tree) =>
   tree.nodes.filter((n) => n.status === "mastered").length;
@@ -7,6 +7,11 @@ export const url = (...parts) => "#/" + parts.map(encodeURIComponent).join("/");
 export const go = (...parts) => {
   location.hash = url(...parts);
 };
+// Which sidebar tab a page belongs to: pages for working on a tree count as the trees tab.
+export const navSection = (page) =>
+  ["map", "lesson", "quiz", "results", "create"].includes(page)
+    ? "trees"
+    : page || "dashboard";
 export function useRoute() {
   const read = () =>
     location.hash
@@ -74,11 +79,14 @@ export function Notice({ children }) {
     </p>
   );
 }
-export function PageTitle({ label, title, children }) {
+// The small label above the heading is the sidebar tab this page belongs to
+// (TITLES.TAB_TITLES), so it always matches the sidebar. Pages with no tab (profile) show none.
+export function PageTitle({ title, children }) {
+  const label = TITLES.TAB_TITLES[navSection(location.hash.slice(2).split("/")[0])];
   return (
     <header className="page-title">
       <div>
-        {label && <small>{label}</small>}
+        {label && <small>{label.toUpperCase()}</small>}
         <h1>{title}</h1>
       </div>
       {children}

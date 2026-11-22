@@ -11,7 +11,7 @@ import {
   percent,
   url,
 } from "../ui";
-import { LABELS } from "../labels";
+import { LABELS, TITLES } from "../labels";
 export function Dashboard({ trees, xp, onDelete, removing }) {
   const current =
     trees.find((t) => t.id === localStorage.getItem("recentTree")) || trees[0];
@@ -37,7 +37,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
   ];
   return (
     <>
-      <PageTitle label="YOUR WORKSPACE" title="Learning dashboard">
+      <PageTitle {...TITLES.PAGES.dashboard}>
         {current && <CreateTreeAction />}
       </PageTitle>
       <section className={"hero" + (current ? " with-map" : "")}>
@@ -133,7 +133,7 @@ export function Trees({ trees, onDelete, removing }) {
   );
   return (
     <>
-      <PageTitle label="LIBRARY" title="My learning trees">
+      <PageTitle {...TITLES.PAGES.trees}>
         <CreateTreeAction />
       </PageTitle>
       <input
@@ -169,7 +169,7 @@ export function Analytics({ trees }) {
     .sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
   return (
     <>
-      <PageTitle label="PROGRESS" title="Learning analytics" />
+      <PageTitle {...TITLES.PAGES.analytics} />
       <label>
         Learning tree
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -258,7 +258,7 @@ export function Achievements({ trees, xp }) {
   ];
   return (
     <>
-      <PageTitle label="PROGRESS" title="Achievements" />
+      <PageTitle {...TITLES.PAGES.achievements} />
       <Experience xp={xp} />
       <p>{awards.filter((a) => a[2]).length} of 6 milestones earned</p>
       <div className="cards">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { loadWorkspace, request, treePath } from "./api";
-import { Icon, Notice, go, url, useRoute } from "./ui";
+import { Icon, Notice, go, navSection, url, useRoute } from "./ui";
 import { Dashboard, Trees, Analytics, Achievements } from "./pages/Overview";
 import { Lesson, LearningMap } from "./pages/Learning";
 import CreateTree from "./pages/CreateTree";
@@ -10,14 +10,10 @@ import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
 import { useTreeJob } from "./useTreeJob";
 import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
-import { LABELS } from "./labels";
+import { LABELS, TITLES } from "./labels";
 
-const primaryNav = [
-  ["dashboard", "Dashboard"],
-  ["trees", "My trees"],
-  ["analytics", "Analytics"],
-  ["achievements", "Achievements"],
-];
+const primaryNav = Object.entries(TITLES.TAB_TITLES); // [key, sidebar label]
+document.title = TITLES.APP; // browser tab
 function App() {
   const [page = "dashboard", id, nodeId] = useRoute(),
     [trees, setTrees] = useState([]),
@@ -113,22 +109,7 @@ function App() {
   const section = page || "dashboard",
     tree = trees.find((t) => t.id === id),
     node = tree?.nodes.find((n) => n.id === nodeId);
-  const nav = ["map", "lesson", "quiz", "results", "create"].includes(section)
-    ? "trees"
-    : section;
-  const titles = {
-    dashboard: "Overview",
-    trees: "My trees",
-    map: "Learning map",
-    lesson: "Lesson",
-    quiz: "Assessment",
-    results: "Answer review",
-    analytics: "Analytics",
-    achievements: "Achievements",
-    create: LABELS.CREATE_TREE,
-    profile: "My Profile",
-    settings: "Settings",
-  };
+  const nav = navSection(section);
   let body;
   if (loading) body = <Notice>Opening your workspace…</Notice>;
   else if (connectionError)
@@ -209,7 +190,7 @@ function App() {
           <img src={appIconUrl} alt="" />
           SkillTree
         </a>
-        <div className="nav-title">WORKSPACE</div>
+        <div className="nav-title">{TITLES.WORKSPACE.toUpperCase()}</div>
         <nav>
           {primaryNav.map(([key, title]) => (
             <a
@@ -244,9 +225,9 @@ function App() {
           >
             <Icon name="menu" />
           </button>
-          <span>Workspace</span>
+          <span>{TITLES.WORKSPACE}</span>
           <Icon name="chevron" />
-          <b>{titles[section] || "Page"}</b>
+          <b>{TITLES.TOPBAR[section] || TITLES.TOPBAR.missing}</b>
           <a className="header-profile" href={url("profile")}>
             <Avatar name={name} />
             <b>{name}</b>

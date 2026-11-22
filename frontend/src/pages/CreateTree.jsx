@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { PageTitle } from "../ui";
-import { LABELS } from "../labels";
+import { LABELS, TITLES } from "../labels";
 export default function CreateTree({ job }) {
   const [topic, setTopic] = useState(""),
     [goal, setGoal] = useState(""),
@@ -16,7 +16,7 @@ export default function CreateTree({ job }) {
   }
   return (
     <>
-      <PageTitle label="MY TREES" title="Create a learning tree" />
+      <PageTitle {...TITLES.PAGES.create} />
       <form className="panel pad form" onSubmit={submit}>
         <h2>What do you want to learn?</h2>
         <p>
