@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { nodePath } from "../api";
 import { url } from "../ui";
 import { ReadState, useRead } from "./Learning";
+import { LABELS } from "../labels";
 
 function MissedAnswers({ treeId, nodeId, concept }) {
   const { data, error, reload } = useRead(
@@ -112,7 +113,7 @@ export default function KnowledgeGaps({ rows }) {
                           className="button primary"
                           href={url("lesson", tree.id, review.id)}
                         >
-                          Review Topic
+                          {LABELS.REVIEW_TOPIC}
                         </a>
                       ) : (
                         <>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { PageTitle } from "../ui";
+import { LABELS } from "../labels";
 export default function CreateTree({ job }) {
   const [topic, setTopic] = useState(""),
     [goal, setGoal] = useState(""),
@@ -50,7 +51,7 @@ export default function CreateTree({ job }) {
           </label>
         </details>
         <button className="primary" disabled={job.busy || !topic.trim()}>
-          {job.busy ? "Growing your tree…" : "Generate tree"}
+          {job.busy ? LABELS.GENERATING_TREE : LABELS.GENERATE_TREE}
         </button>
       </form>
     </>

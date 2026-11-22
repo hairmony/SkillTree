@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { LABELS } from "./labels";
 export const percent = (value) => Math.round(value * 100) + "%";
 export const done = (tree) =>
   tree.nodes.filter((n) => n.status === "mastered").length;
@@ -33,7 +34,8 @@ export function useRoute() {
 // colours so it follows the CSS. Any style works (outline or filled, any viewBox, e.g.
 // Material Symbols): <Icon> keeps the file's own <svg> settings and only sets the size.
 // Sub-folders work too: assets/achievements/on-track.svg is <Icon name="achievements/on-track" />.
-const files = import.meta.glob("../assets/**/*.svg", {
+// (assets/background/ is skipped: those are big images used from CSS, not icons)
+const files = import.meta.glob(["../assets/**/*.svg", "!../assets/background/**"], {
   query: "?raw",
   import: "default",
   eager: true,
@@ -87,7 +89,7 @@ export function CreateTreeAction() {
   return (
     <a className="button primary" href={url("create")}>
       <Icon name="add" />
-      Create tree
+      {LABELS.CREATE_TREE}
     </a>
   );
 }

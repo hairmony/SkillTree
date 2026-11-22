@@ -10,6 +10,7 @@ import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
 import { useTreeJob } from "./useTreeJob";
 import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
+import { LABELS } from "./labels";
 
 const primaryNav = [
   ["dashboard", "Dashboard"],
@@ -124,7 +125,7 @@ function App() {
     results: "Answer review",
     analytics: "Analytics",
     achievements: "Achievements",
-    create: "Create tree",
+    create: LABELS.CREATE_TREE,
     profile: "My Profile",
     settings: "Settings",
   };
@@ -140,7 +141,7 @@ function App() {
             refresh().catch(() => {});
           }}
         >
-          Retry Connection
+          {LABELS.RETRY_CONNECTION}
         </button>
       </Notice>
     );
@@ -264,18 +265,18 @@ function App() {
                 </a>
               )}
               {job.status.state === "paused" && (
-                <button onClick={job.retry}>Check again</button>
+                <button onClick={job.retry}>{LABELS.CHECK_AGAIN}</button>
               )}
               {job.status.state === "failed" && (
-                <a href={url("create")}>Create tree</a>
+                <a href={url("create")}>{LABELS.CREATE_TREE}</a>
               )}
-              {!job.busy && <button onClick={job.dismiss}>Dismiss</button>}
+              {!job.busy && <button onClick={job.dismiss}>{LABELS.DISMISS}</button>}
             </Notice>
           )}
           {feedback && (
             <Notice>
               {feedback}{" "}
-              <button onClick={() => setFeedback("")}>Dismiss</button>
+              <button onClick={() => setFeedback("")}>{LABELS.DISMISS}</button>
             </Notice>
           )}
           {body}

@@ -11,6 +11,7 @@ import {
   percent,
   url,
 } from "../ui";
+import { LABELS } from "../labels";
 export function Dashboard({ trees, xp, onDelete, removing }) {
   const current =
     trees.find((t) => t.id === localStorage.getItem("recentTree")) || trees[0];
@@ -62,7 +63,7 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
           )}
           {current ? (
             <a className="button light" href={url("map", current.id)}>
-              View full tree
+              {LABELS.VIEW_FULL_TREE}
             </a>
           ) : (
             <CreateTreeAction />
