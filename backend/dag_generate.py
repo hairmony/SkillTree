@@ -181,13 +181,13 @@ class NodeContent(BaseModel):
 
 def build_content_prompt(course: str, title: str, summary: str,
                          passages: str, error: str | None = None) -> str:
-    prompt = f"""You are writing a study page for one concept in a course on: {course}
+    prompt = f"""You are writing a comprehensive study page for one concept in a course on: {course}
 
 Concept: {title}
 Summary: {summary}
 
-Write a brief summary page. The learner gets the key ideas here and follows the linked sources for more depth. Use ONLY the numbered passages below for facts. Write:
-- details: a brief summary for a beginner in 2 or 3 short paragraphs: what the concept is, how it works, and the key terms. Plain text only, no markdown symbols, with a blank line between paragraphs.
+Write a thorough, complete study summary covering the full scope of the concept based on the passages. Use ONLY the numbered passages below for facts. Write:
+- details: a comprehensive, beginner-friendly explanation covering the entire concept in depth—including definitions and key terms, how it works step by step, core mechanisms or rules, relationships or trade-offs with connected ideas, and common misunderstandings or edge cases. Break it into as many clear, focused paragraphs as needed to cover everything thoroughly. Plain text only, no markdown symbols, with a blank line between paragraphs.
 - examples: 2 or 3 concrete, worked examples that show the concept in use, each two to four sentences. Each example states a specific case and walks through it to the result, for example a calculation shown step by step, a procedure applied to real values, or a specific instance of the idea explained. Write them as statements, never as questions or exercises for the learner, and always include the answer or outcome. Do not repeat the explanation in general terms.
 - citations: the numbers of the passages you used for facts, for example [1, 3]
 

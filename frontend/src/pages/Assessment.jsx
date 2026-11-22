@@ -3,6 +3,7 @@ import { request, nodePath, treePath } from "../api";
 import { nextLesson } from "../learningPath";
 import { done, Notice, PageTitle, percent, url } from "../ui";
 import { ReadState, useRead } from "./Learning";
+import { LABELS } from "../labels";
 export function Assessment({ tree, node, applyGrade }) {
   const key = "quiz:" + tree.id + ":" + node.id;
   const [draft, setDraft] = useState(() => {
@@ -85,7 +86,7 @@ export function Assessment({ tree, node, applyGrade }) {
   return (
     <>
       <a href={url("lesson", tree.id, node.id)}>‹ Back to lesson</a>
-      <PageTitle label="ASSESSMENT" title={node.title} />
+      <PageTitle title={node.title} />
       {!draft ? (
         <div className="panel pad form">
           <h2>Check your understanding</h2>
@@ -105,7 +106,7 @@ export function Assessment({ tree, node, applyGrade }) {
             </select>
           </label>
           <button className="primary" disabled={busy} onClick={begin}>
-            {busy ? "Preparing questions…" : "Begin quiz"}
+            {busy ? LABELS.PREPARING_QUIZ : LABELS.BEGIN_QUIZ}
           </button>
         </div>
       ) : (
@@ -147,7 +148,7 @@ export function Assessment({ tree, node, applyGrade }) {
               Object.keys(draft.answers).length !== draft.quiz.questions.length
             }
           >
-            {busy ? "Grading…" : "Submit assessment"}
+            {busy ? LABELS.GRADING_QUIZ : LABELS.SUBMIT_QUIZ}
           </button>
         </form>
       )}
@@ -167,7 +168,7 @@ export function Results({ tree, node, evaluation }) {
   return (
     <>
       <a href={url("map", tree.id)}>‹ Learning map</a>
-      <PageTitle label="ASSESSMENT REVIEW" title={node.title} />
+      <PageTitle title={node.title} />
       {!data ? (
         <ReadState error={error} reload={reload} />
       ) : (
@@ -185,7 +186,7 @@ export function Results({ tree, node, evaluation }) {
             )}
             {data.added.length > 0 && (
               <section className="growth">
-                <h2>Your learning tree has grown!</h2>
+                <h2>Your skill tree has grown!</h2>
                 <p>
                   {data.added.length} new{" "}
                   {data.added.length === 1 ? "concept" : "concepts"} to explore
@@ -204,7 +205,7 @@ export function Results({ tree, node, evaluation }) {
                       "",
                   )}
                 >
-                  View on updated tree
+                  {LABELS.VIEW_UPDATED_TREE}
                 </a>
               </section>
             )}
@@ -261,7 +262,7 @@ function Continuation({ tree, node }) {
         {next
           ? next.title
           : done(tree) === tree.nodes.length
-            ? "Learning tree complete"
+            ? "Skill tree complete"
             : "No lesson is currently unlocked"}
       </h2>
       <p>
@@ -270,11 +271,11 @@ function Continuation({ tree, node }) {
       </p>
       {next ? (
         <a className="button primary" href={url("lesson", tree.id, next.id)}>
-          Continue to Next Lesson
+          {LABELS.NEXT_LESSON}
         </a>
       ) : (
         <a className="button primary" href={url("map", tree.id)}>
-          Back to Learning Tree
+          {LABELS.BACK_TO_TREE}
         </a>
       )}
     </section>

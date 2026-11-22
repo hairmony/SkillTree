@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Experience, PageTitle, url } from "../ui";
+import { LABELS, TITLES } from "../labels";
 
 export function Avatar({ name }) {
   return (
@@ -70,7 +71,7 @@ export function Profile({ name, saveName, editing, xp }) {
   }
   return (
     <>
-      <PageTitle title={editing ? "Settings" : "My Profile"} />
+      <PageTitle {...TITLES.PAGES[editing ? "settings" : "profile"]} />
       {!editing && <Experience xp={xp} />}
       <section className="panel pad form">
         <div className="profile-card">
@@ -95,13 +96,13 @@ export function Profile({ name, saveName, editing, xp }) {
               />
             </label>
             <button className="primary" disabled={!value.trim()}>
-              Save name
+              {LABELS.SAVE_NAME}
             </button>
             <p role="status">{message}</p>
           </form>
         ) : (
           <a className="button" href={url("settings")}>
-            Edit name
+            {LABELS.EDIT_NAME}
           </a>
         )}
       </section>

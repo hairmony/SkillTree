@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { loadWorkspace, request, treePath } from "./api";
-import { Icon, Notice, go, url, useRoute } from "./ui";
+import { Icon, Notice, go, navSection, url, useRoute } from "./ui";
 import { Dashboard, Trees, Analytics, Achievements } from "./pages/Overview";
 import { Lesson, LearningMap } from "./pages/Learning";
 import CreateTree from "./pages/CreateTree";
 import { Assessment, Results } from "./pages/Assessment";
 import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
 import { useTreeJob } from "./useTreeJob";
+import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
+import { LABELS, TITLES } from "./labels";
 
-const primaryNav = [
-  ["dashboard", "Dashboard"],
-  ["trees", "My trees"],
-  ["analytics", "Analytics"],
-  ["achievements", "Achievements"],
-];
+const primaryNav = Object.entries(TITLES.TAB_TITLES); // [key, sidebar label]
+document.title = TITLES.APP; // browser tab
 function App() {
   const [page = "dashboard", id, nodeId] = useRoute(),
     [trees, setTrees] = useState([]),
@@ -24,7 +22,23 @@ function App() {
     [feedback, setFeedback] = useState(""),
     [removing, setRemoving] = useState(null),
     [loading, setLoading] = useState(true),
-    [menu, setMenu] = useState(false);
+    [menu, setMenu] = useState(false),
+    // desktop: sidebar closed with the ☰ button (remembered); phones use `menu` instead
+    [collapsed, setCollapsed] = useState(() => {
+      try {
+        return localStorage.getItem("sidebarCollapsed") === "1";
+      } catch {
+        return false;
+      }
+    });
+  const isPhone = () => window.matchMedia("(max-width: 800px)").matches;
+  function toggleNav() {
+    if (isPhone()) return setMenu(!menu); // slide-out menu
+    setCollapsed(!collapsed);
+    try {
+      localStorage.setItem("sidebarCollapsed", collapsed ? "0" : "1");
+    } catch {}
+  }
   const [name, setName] = useState(
     () => localStorage.getItem("studentName") || "Student",
   );
@@ -111,22 +125,7 @@ function App() {
   const section = page || "dashboard",
     tree = trees.find((t) => t.id === id),
     node = tree?.nodes.find((n) => n.id === nodeId);
-  const nav = ["map", "lesson", "quiz", "results", "create"].includes(section)
-    ? "trees"
-    : section;
-  const titles = {
-    dashboard: "Overview",
-    trees: "My trees",
-    map: "Learning map",
-    lesson: "Lesson",
-    quiz: "Assessment",
-    results: "Answer review",
-    analytics: "Analytics",
-    achievements: "Achievements",
-    create: "Create tree",
-    profile: "My Profile",
-    settings: "Settings",
-  };
+  const nav = navSection(section);
   let body;
   if (loading) body = <Notice>Opening your workspace…</Notice>;
   else if (connectionError)
@@ -139,7 +138,7 @@ function App() {
             refresh().catch(() => {});
           }}
         >
-          Retry Connection
+          {LABELS.RETRY_CONNECTION}
         </button>
       </Notice>
     );
@@ -197,17 +196,17 @@ function App() {
     body = (
       <Notice>
         This page is unavailable.{" "}
-        <a href={tree ? url("map", id) : url("trees")}>Open learning trees</a>
+        <a href={tree ? url("map", id) : url("trees")}>Open skill trees</a>
       </Notice>
     );
   return (
-    <div className="app">
+    <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className={"sidebar " + (menu ? "open" : "")}>
         <a className="brand" href={url("dashboard")}>
-          <img src="/mark.svg" alt="" />
+          <img src={appIconUrl} alt="" />
           SkillTree
         </a>
-        <div className="nav-title">WORKSPACE</div>
+        <div className="nav-title">{TITLES.WORKSPACE.toUpperCase()}</div>
         <nav>
           {primaryNav.map(([key, title]) => (
             <a
@@ -237,14 +236,14 @@ function App() {
           <button
             className="hamburger"
             aria-label="Toggle navigation"
-            aria-expanded={menu}
-            onClick={() => setMenu(!menu)}
+            aria-expanded={isPhone() ? menu : !collapsed}
+            onClick={toggleNav}
           >
             <Icon name="menu" />
           </button>
-          <span>Workspace</span>
-          <Icon name="chevron" size={14} />
-          <b>{titles[section] || "Page"}</b>
+          <span>{TITLES.WORKSPACE}</span>
+          <Icon name="chevron" />
+          <b>{TITLES.TOPBAR[section] || TITLES.TOPBAR.missing}</b>
           <a className="header-profile" href={url("profile")}>
             <Avatar name={name} />
             <b>{name}</b>
@@ -254,7 +253,7 @@ function App() {
           {job.status && (
             <Notice>
               {job.status.state === "done"
-                ? "Your learning tree is ready. "
+                ? "Your skill tree is ready. "
                 : ""}
               {job.status.message}{" "}
               {job.status.state === "done" && (
@@ -263,18 +262,18 @@ function App() {
                 </a>
               )}
               {job.status.state === "paused" && (
-                <button onClick={job.retry}>Check again</button>
+                <button onClick={job.retry}>{LABELS.CHECK_AGAIN}</button>
               )}
               {job.status.state === "failed" && (
-                <a href={url("create")}>Create tree</a>
+                <a href={url("create")}>{LABELS.CREATE_TREE}</a>
               )}
-              {!job.busy && <button onClick={job.dismiss}>Dismiss</button>}
+              {!job.busy && <button onClick={job.dismiss}>{LABELS.DISMISS}</button>}
             </Notice>
           )}
           {feedback && (
             <Notice>
               {feedback}{" "}
-              <button onClick={() => setFeedback("")}>Dismiss</button>
+              <button onClick={() => setFeedback("")}>{LABELS.DISMISS}</button>
             </Notice>
           )}
           {body}

@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { request, nodePath } from "../api";
 import { Notice, PageTitle, SafeLink, done, url } from "../ui";
 import ConceptMap from "../ConceptMap";
+import { LABELS } from "../labels";
 export function LearningMap({ tree, added }) {
   return (
     <>
-      <PageTitle label="LEARNING MAP" title={tree.title} />
+      <PageTitle title={tree.title} />
       <p>
         {done(tree)} of {tree.nodes.length} concepts completed
       </p>
@@ -48,7 +49,7 @@ function PassageSearch({ tree }) {
           onChange={(e) => setQuery(e.target.value)}
         />
         <button disabled={busy || !query.trim()}>
-          {busy ? "Searching…" : "Search"}
+          {busy ? LABELS.SEARCHING : LABELS.SEARCH}
         </button>
       </form>
       {error && <Notice>{error}</Notice>}
@@ -89,7 +90,7 @@ export function ReadState({ error, reload }) {
   return (
     <Notice>
       {error || "Preparing your study material…"}{" "}
-      {error && <button onClick={reload}>Try again</button>}
+      {error && <button onClick={reload}>{LABELS.TRY_AGAIN}</button>}
     </Notice>
   );
 }
@@ -100,7 +101,7 @@ export function Lesson({ tree, node }) {
   return (
     <>
       <a href={url("map", tree.id)}>‹ {tree.title}</a>
-      <PageTitle label="LESSON" title={node.title} />
+      <PageTitle title={node.title} />
       <p>{node.description}</p>
       <div className="lesson-cols">
         <article className="panel pad">
@@ -140,7 +141,7 @@ export function Lesson({ tree, node }) {
                 className="button primary"
                 href={url("quiz", tree.id, node.id)}
               >
-                Take assessment
+                {LABELS.TAKE_ASSESSMENT}
               </a>
             )}
             {tree.history.some((q) => q.node_id === node.id) && (

@@ -1,8 +1,12 @@
 :root {
+  /* always reserve the scrollbar's space, so content sits in the same place on short
+     tabs (no scrollbar) and long tabs (scrollbar) */
+  scrollbar-gutter: stable;
   color-scheme: dark;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   background: #101715;
   color: #f2f5ed;
+  --card-gap: 20px; /* space between cards on a page, vertically and side by side */
   --panel: #19211e;
   --border: #303c35;
   --muted: #acb8af;
@@ -43,6 +47,8 @@ button,
   color: #f4f8f1;
   cursor: pointer;
   transition: background 0.15s;
+  text-shadow: none;
+  box-shadow: none;
 }
 .button:hover,
 button:hover {
@@ -53,14 +59,12 @@ button:disabled {
   opacity: 0.55;
   cursor: default;
 }
+/* one style for every main action button (.light is kept as the same look) */
 .primary,
 .light {
   background: var(--lime);
   color: #19281c;
-  border: 0;
-}
-.light {
-  background: #e5f6d9;
+  border: 1px solid var(--lime); /* same 1px border as other buttons, so sizes match */
 }
 button:focus-visible,
 a:focus-visible,
@@ -110,7 +114,7 @@ small {
   min-height: 100vh;
 }
 .sidebar {
-  width: 224px;
+  width: 264px;
   flex: none;
   position: sticky;
   top: 0;
@@ -244,6 +248,7 @@ small {
   border-radius: 16px;
   padding: 34px 34px;
   min-height: 218px;
+  margin-bottom: var(--card-gap);
   display: flex;
   align-items: center;
 }
@@ -251,12 +256,47 @@ small {
   position: absolute;
   inset: 0 0 0 32%;
   z-index: -1;
-  background: url("/terrain.svg") center 51% / cover no-repeat;
+  background: url("../assets/background/terrain.svg") center 51% / cover no-repeat;
   mask-image: linear-gradient(to right, transparent, black 23%);
 }
 .hero-copy {
   max-width: 64%;
+}
+/* shadow only on the text over the terrain image, not on the buttons */
+.hero-copy small,
+.hero-copy h2,
+.hero-copy p {
   text-shadow: 0 2px 10px #162e24;
+}
+/* recent tree: text on the left, that tree's concept map on the right */
+.hero.with-map {
+  gap: 28px;
+  align-items: stretch;
+  min-height: 300px;
+}
+.hero.with-map .hero-copy {
+  flex: 1 1 0;
+  max-width: none;
+  align-self: center;
+}
+.hero-map {
+  flex: 2 1 0; /* about two thirds of the card */
+  min-width: 0;
+  position: relative;
+  /* margin: -34px -34px -34px 0; */
+}
+.hero-map .graph-scroll {
+  /* fill that space exactly; the map scrolls inside if the tree is bigger */
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  max-height: none;
+  border-width: 0 0 0 1px; /* just a divider line next to the text */
+  border-radius: 0; /* the card's own rounded corners clip it */
+}
+.hero p.hero-progress {
+  margin-top: -12px;
+  font-size: 0.9rem;
 }
 .hero-copy small {
   display: flex;
@@ -293,8 +333,8 @@ small {
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 20px 0 30px;
+  gap: var(--card-gap);
+  margin: 0 0 var(--card-gap);
 }
 .metric {
   display: grid;
@@ -317,11 +357,12 @@ small {
 }
 .round,
 .iconbox {
-  width: 38px;
-  height: 38px;
+  flex: none; /* keep it square next to long tree titles */
+  width: 60px;
+  height: 60px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: 14px;
 }
 .metric .round {
   grid-column: 2;
@@ -352,7 +393,7 @@ small {
 .lesson-cols {
   display: grid;
   grid-template-columns: 1.45fr 1fr;
-  gap: 22px;
+  gap: var(--card-gap);
 }
 .section-head {
   margin-bottom: 13px;
@@ -416,7 +457,7 @@ progress::-webkit-progress-value {
 }
 .pad {
   padding: 24px;
-  margin-bottom: 18px;
+  margin-bottom: var(--card-gap);
 }
 .pad h2,
 .pad h3 {
@@ -428,7 +469,7 @@ progress::-webkit-progress-value {
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 14px;
+  gap: var(--card-gap);
 }
 .award .round {
   float: right;
@@ -470,11 +511,8 @@ select {
   min-width: 140px;
 }
 .search {
-  max-width: 420px;
-  margin-bottom: 24px;
-}
-.form {
-  max-width: 740px;
+  /* full width of the page */
+  margin-bottom: var(--card-gap);
 }
 .form em {
   font-weight: 400;
@@ -513,12 +551,9 @@ summary + label {
   max-height: 260px;
 }
 .concept-graph {
+  /* size and card positions come from dagre (ConceptMap.jsx) */
   position: relative;
-  width: max-content;
-  min-width: 100%;
-  display: grid;
-  gap: 52px;
-  padding: 24px;
+  margin: 0 auto;
 }
 .concept-graph svg {
   position: absolute;
@@ -526,13 +561,8 @@ summary + label {
   height: 100%;
   pointer-events: none;
 }
-.concept-row {
-  display: flex;
-  justify-content: center;
-  align-items: start;
-  gap: 24px;
-}
 .concept-node {
+  position: absolute;
   z-index: 1;
   display: grid;
   align-content: center;
@@ -564,13 +594,6 @@ summary + label {
   outline: 2px solid #dfbe7c;
   outline-offset: 2px;
 }
-.compact .concept-graph {
-  padding: 16px;
-  gap: 36px;
-}
-.compact .concept-row {
-  gap: 16px;
-}
 .compact .concept-node {
   width: 136px;
   font-size: 0.85rem;
@@ -587,17 +610,29 @@ summary + label {
 .lesson-map .graph-scroll {
   margin: 14px 0 0;
 }
-.experience > div {
+.experience {
+  margin-bottom: var(--card-gap);
+}
+/* EXPERIENCE label on top, then one row: icon, "Level N", total XP (all centred on one line) */
+.experience > small {
+  display: block;
+  margin: 0 0 10px;
+}
+.experience-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
-.experience strong {
+.experience-icon {
+  display: flex; /* no extra line height, so it centres exactly with the text */
+  color: #e6c982; /* same gold as the old badge */
+}
+.experience-row h2 {
+  line-height: 1;
+}
+.experience-row strong {
   margin-left: auto;
   color: var(--lime);
-}
-.experience small {
-  margin: 0;
 }
 .experience progress {
   margin: 15px 0 5px;
@@ -610,7 +645,7 @@ summary + label {
 .tree-entry {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: var(--card-gap);
   padding-right: 12px;
 }
 .tree-entry .tree-card {
@@ -619,10 +654,11 @@ summary + label {
   margin: 0;
 }
 .delete-action {
-  font-size: 0.8rem;
+  display: grid;
+  place-items: center;
   color: #eab5ad;
   background: transparent;
-  padding: 5px 9px;
+  padding: 6px;
 }
 .growth {
   border-left: 3px solid var(--lime);
@@ -631,9 +667,6 @@ summary + label {
 .xp-gain {
   color: var(--lime);
   font-weight: 700;
-}
-.dashboard-map {
-  margin: 14px 0;
 }
 .notice > button,
 .notice > a {
@@ -668,9 +701,20 @@ li {
 .score {
   font-size: 2.7rem;
 }
-.hamburger,
 .scrim {
   display: none;
+}
+/* ☰ button in the top bar: opens/closes the sidebar on every screen size */
+.hamburger {
+  display: flex;
+  padding: 6px;
+  background: none;
+  border: 0;
+}
+@media (min-width: 801px) {
+  .app.sidebar-collapsed .sidebar {
+    display: none; /* content takes the full width */
+  }
 }
 fieldset {
   min-width: 0;
@@ -723,6 +767,22 @@ legend {
   .hero {
     padding: 25px;
   }
+  .hero.with-map {
+    flex-direction: column; /* narrow screens: map goes under the text */
+  }
+  .hero.with-map .hero-copy,
+  .hero-map {
+    flex: none;
+  }
+  .hero-map {
+    margin: 0; /* stacked under the text: normal spacing, no edge-to-edge */
+  }
+  .hero-map .graph-scroll {
+    position: static;
+    height: 260px;
+    border-width: 1px;
+    border-radius: 12px;
+  }
   .dashboard-bottom,
   .lesson-cols {
     grid-template-columns: 1fr;
@@ -759,10 +819,6 @@ legend {
   }
   .page-title {
     flex-wrap: wrap;
-  }
-  .page-title .button {
-    font-size: 0.82rem;
-    padding: 9px 11px;
   }
   .pad {
     padding: 17px;

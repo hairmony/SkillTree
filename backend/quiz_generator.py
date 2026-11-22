@@ -207,6 +207,12 @@ class QuizGenerator:
         """Build system prompt based on difficulty targeting."""
         base_prompt = """You are an experienced educator who writes quiz questions that help students learn.
 Create multiple-choice questions based ONLY on the provided text.
+
+Question design rules:
+- Draw from the SUMMARY section when possible, using supporting excerpts only for additional detail.
+- Test core concepts, definitions, principles, and relationships rather than trivia or specific examples/scenarios used to illustrate a point in the text (unless the example itself is the core concept).
+- Write self-contained questions that do not rely on a student remembering a specific anecdote or case study from the passage.
+
 For each question, estimate its difficulty:
 - "difficulty": one of "easy", "medium", or "hard"
 - "difficulty_score": a precise number from 0.0 to 1.0 where:
@@ -238,20 +244,22 @@ Return the output as a valid JSON object with the following structure:
             difficulty_guidance = {
                 "easy": """
 IMPORTANT: Generate ONLY EASY questions with difficulty_score between 0.1 and 0.3. Easy questions should:
-- Test direct recall of facts stated in the text
+- Test direct recall of core facts or definitions stated in the text
 - Have one clearly correct answer that is explicitly stated
-- Avoid requiring inference or connecting multiple concepts
+- Avoid requiring inference, connecting multiple concepts, or recalling specific examples
 - Use simple, straightforward language""",
+                
                 "medium": """
 IMPORTANT: Generate ONLY MEDIUM difficulty questions with difficulty_score between 0.35 and 0.6. Medium questions should:
-- Require understanding and application of concepts
-- May need connecting two related facts from the text
-- Test comprehension, not just memorization
+- Require understanding and application of core concepts
+- May need connecting two related principles from the text
+- Test conceptual comprehension, not memorization of specific examples
 - Have plausible distractors but a clear correct answer""",
+                
                 "hard": """
 IMPORTANT: Generate ONLY HARD questions with difficulty_score between 0.65 and 0.9. Hard questions should:
 - Require synthesis or analysis of multiple concepts
-- Test application to new scenarios or deeper understanding
+- Test application of principles to new scenarios rather than recalling specific scenarios from the text
 - May require making inferences beyond what's explicitly stated
 - Have sophisticated distractors that require careful analysis""",
             }

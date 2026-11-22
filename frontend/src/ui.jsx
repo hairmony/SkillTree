@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { LABELS, TITLES } from "./labels";
 export const percent = (value) => Math.round(value * 100) + "%";
 export const done = (tree) =>
   tree.nodes.filter((n) => n.status === "mastered").length;
@@ -6,6 +7,11 @@ export const url = (...parts) => "#/" + parts.map(encodeURIComponent).join("/");
 export const go = (...parts) => {
   location.hash = url(...parts);
 };
+// Which sidebar tab a page belongs to: pages for working on a tree count as the trees tab.
+export const navSection = (page) =>
+  ["map", "lesson", "quiz", "results", "create"].includes(page)
+    ? "trees"
+    : page || "dashboard";
 export function useRoute() {
   const read = () =>
     location.hash
@@ -29,41 +35,41 @@ export function useRoute() {
   }, []);
   return route;
 }
-const paths = {
-  dashboard: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
-  trees: "M5 3h14v5H5z M3 12h18 M5 16h14 M7 20h10",
-  map: "M5 4v15h14 M5 10h10 M15 7l4 3-4 3",
-  analytics: "M3 20h18 M6 16v-5 M12 16V4 M18 16V8",
-  achievements:
-    "M6 3h12v5a6 6 0 0 1-12 0z M6 5H3v2a5 5 0 0 0 4 5 M18 5h3v2a5 5 0 0 1-4 5 M12 14v5 M8 21h8",
-  book: "M12 6Q7 2 2 4v14q5-2 10 2 5-4 10-2V4q-5-2-10 2v14",
-  target: "M20 12a8 8 0 1 1-8-8 M16 12a4 4 0 1 1-4-4 M12 12l8-8",
-  leaf: "M4 19Q1 4 20 3q1 16-13 16 M5 20l9-10",
-  compass: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z M15 8l-2 6-5 2 2-6z",
-  plus: "M12 5v14 M5 12h14",
-  settings: "M3 7h18 M3 17h18 M8 4v6 M16 14v6",
-  lock: "M6 10h12v11H6z M8 10V7a4 4 0 0 1 8 0v3",
-  check: "m4 12 5 5L20 6",
-  menu: "M3 6h18 M3 12h18 M3 18h18",
-  calendar: "M4 5h16v15H4z M4 10h16 M8 3v5 M16 3v5",
-  chevron: "m9 5 7 7-7 7",
-  bolt: "m14 2-9 12h6l-1 8 9-13h-6z",
-};
-export function Icon({ name, size = 20 }) {
+// Every icon is its own file in frontend/assets/<name>.svg. Use currentColor for its
+// colours so it follows the CSS. Any style works (outline or filled, any viewBox, e.g.
+// Material Symbols): <Icon> keeps the file's own <svg> settings and only sets the size.
+// Sub-folders work too: assets/achievements/on-track.svg is <Icon name="achievements/on-track" />.
+// (assets/background/ is skipped: those are big images used from CSS, not icons)
+const files = import.meta.glob(["../assets/**/*.svg", "!../assets/background/**"], {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+const camel = (name) => name.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+const icons = Object.fromEntries(
+  Object.entries(files).map(([path, svg]) => {
+    const tag = svg.match(/<svg([^>]*)>/)?.[1] || "";
+    const attrs = {};
+    for (const [, key, value] of tag.matchAll(/([\w:-]+)="([^"]*)"/g))
+      if (!["xmlns", "width", "height", "class", "style"].includes(key))
+        attrs[camel(key)] = value; // e.g. stroke-width -> strokeWidth for React
+    return [
+      path.replace(/^\.\.\/assets\//, "").replace(/\.svg$/, ""), // e.g. "achievements/on-track"
+      { attrs, inner: svg.replace(/^[\s\S]*?<svg[^>]*>|<\/svg>\s*$/g, "") },
+    ];
+  }),
+);
+export function Icon({ name, size = 24 }) {
+  const icon = icons[name];
   return (
     <svg
       aria-hidden="true"
+      viewBox="0 0 24 24"
+      {...icon?.attrs}
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d={paths[name]} />
-    </svg>
+      dangerouslySetInnerHTML={{ __html: icon?.inner || "" }}
+    />
   );
 }
 export function Notice({ children }) {
@@ -73,11 +79,14 @@ export function Notice({ children }) {
     </p>
   );
 }
-export function PageTitle({ label, title, children }) {
+// The small label above the heading is the sidebar tab this page belongs to
+// (TITLES.TAB_TITLES), so it always matches the sidebar. Pages with no tab (profile) show none.
+export function PageTitle({ title, children }) {
+  const label = TITLES.TAB_TITLES[navSection(location.hash.slice(2).split("/")[0])];
   return (
     <header className="page-title">
       <div>
-        {label && <small>{label}</small>}
+        {label && <small>{label.toUpperCase()}</small>}
         <h1>{title}</h1>
       </div>
       {children}
@@ -87,23 +96,42 @@ export function PageTitle({ label, title, children }) {
 export function CreateTreeAction() {
   return (
     <a className="button primary" href={url("create")}>
-      <Icon name="plus" size={17} />
-      Create tree
+      <Icon name="add" />
+      {LABELS.CREATE_TREE}
     </a>
   );
 }
 
+// XP icon colour by level: blends smoothly between these, level 1 → level 50 (and beyond).
+const LEVEL_COLOURS = [
+  [1, "#9ccf8a"], // green
+  [12, "#6fc7c4"], // teal
+  [25, "#7aa8f0"], // blue
+  [38, "#b78af0"], // purple
+  [50, "#e6c982"], // gold
+];
+export function levelColour(level) {
+  const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  for (let i = 1; i < LEVEL_COLOURS.length; i++) {
+    const [l1, c1] = LEVEL_COLOURS[i - 1],
+      [l2, c2] = LEVEL_COLOURS[i];
+    if (level <= l2) {
+      const t = Math.max(0, (level - l1) / (l2 - l1));
+      const [a, b] = [hex(c1), hex(c2)];
+      return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * t)).join(",")})`;
+    }
+  }
+  return LEVEL_COLOURS[LEVEL_COLOURS.length - 1][1];
+}
 export function Experience({ xp }) {
   return (
     <section className="panel pad experience" aria-label="Experience points">
-      <div>
-        <span className="round gold">
+      <small>EXPERIENCE</small>
+      <div className="experience-row">
+        <span className="experience-icon" style={{ color: levelColour(xp.level) }}>
           <Icon name="bolt" />
         </span>
-        <div>
-          <small>EXPERIENCE</small>
-          <h2>Level {xp.level}</h2>
-        </div>
+        <h2>Level {xp.level}</h2>
         <strong>{xp.xp} total XP</strong>
       </div>
       <progress
@@ -123,7 +151,7 @@ export function TreeCard({ tree, onDelete, removing }) {
     <article className="panel tree-entry">
       <a className="tree-card" href={url("map", tree.id)}>
         <span className="iconbox">
-          <Icon name="map" />
+          <Icon name="map" size={36} />
         </span>
         <div>
           <h3>{tree.title}</h3>
@@ -138,9 +166,10 @@ export function TreeCard({ tree, onDelete, removing }) {
         className="delete-action"
         disabled={Boolean(removing)}
         aria-label={"Delete " + tree.title}
+        title={removing === tree.id ? "Deleting…" : "Delete tree"}
         onClick={() => onDelete(tree)}
       >
-        {removing === tree.id ? "Deleting…" : "Delete"}
+        <Icon name="trash" />
       </button>
     </article>
   );

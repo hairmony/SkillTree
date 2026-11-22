@@ -1,10 +1,10 @@
 import React, {
   useId,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
+import dagre from "@dagrejs/dagre";
 import { go, Notice } from "./ui";
 
 const labels = {
@@ -13,23 +13,41 @@ const labels = {
   mastered: "Completed",
 };
 
-function groupByDepth(tree) {
-  const parents = new Map(tree.nodes.map((node) => [node.id, []]));
-  for (const edge of tree.edges)
-    parents.get(edge.child_id).push(edge.parent_id);
-  const depths = new Map();
-  function depth(id) {
-    if (!depths.has(id)) {
-      depths.set(
-        id,
-        Math.max(0, ...parents.get(id).map((parent) => depth(parent) + 1)),
-      );
-    }
-    return depths.get(id);
+// dagre lays the graph out top to bottom
+function layoutGraph(tree, sizes, compact) {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: "TB",
+    nodesep: compact ? 16 : 24, // space between cards in a row
+    ranksep: compact ? 36 : 52, // space between rows
+    marginx: compact ? 16 : 24,
+    marginy: compact ? 16 : 24,
+  });
+  g.setDefaultEdgeLabel(() => ({}));
+  for (const node of tree.nodes) g.setNode(node.id, sizes[node.id]);
+  for (const e of tree.edges) g.setEdge(e.parent_id, e.child_id);
+  dagre.layout(g);
+
+  const nodes = {};
+  for (const node of tree.nodes) {
+    const { x, y, width, height } = g.node(node.id); // x, y = card centre
+    nodes[node.id] = { left: x - width / 2, top: y - height / 2 };
   }
-  const rows = [];
-  for (const node of tree.nodes) (rows[depth(node.id)] ??= []).push(node);
-  return rows;
+  const edges = tree.edges.map((e) => edgePath(g.edge(e.parent_id, e.child_id).points));
+  const { width, height } = g.graph();
+  return { nodes, edges, width, height };
+}
+
+// Smooth the edges AND keep the bit stretch straight so arrow lines up
+function edgePath(points) {
+  let d = `M${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i],
+      next = points[i + 1];
+    d += ` Q${p.x} ${p.y} ${(p.x + next.x) / 2} ${(p.y + next.y) / 2}`;
+  }
+  const last = points[points.length - 1];
+  return d + ` L${last.x} ${last.y}`;
 }
 
 export default function ConceptMap({
@@ -38,61 +56,43 @@ export default function ConceptMap({
   current,
   added = [],
 }) {
-  const rows = useMemo(() => groupByDepth(tree), [tree]);
   const graph = useRef(null);
   const viewport = useRef(null);
   const marker = useId().replace(/:/g, "");
-  const [paths, setPaths] = useState([]);
+  const [layout, setLayout] = useState(null);
   const [locked, setLocked] = useState(null);
 
   useLayoutEffect(() => {
     const canvas = graph.current;
     if (!canvas) return;
     const buttons = Array.from(canvas.querySelectorAll("[data-node]"));
-    const byId = new Map(buttons.map((el) => [el.dataset.node, el]));
-    // Measure the wrapped titles so arrows always meet the actual card edges.
-    function measure() {
-      setPaths(
-        tree.edges.map(({ parent_id, child_id }) => {
-          const a = byId.get(parent_id),
-            b = byId.get(child_id);
-          const x = a.offsetLeft + a.offsetWidth / 2,
-            y = a.offsetTop + a.offsetHeight;
-          const endX = b.offsetLeft + b.offsetWidth / 2,
-            endY = b.offsetTop - 3;
-          if (Number(b.dataset.row) > Number(a.dataset.row) + 1) {
-            const rowBottom = Math.max(
-              ...Array.from(
-                a.parentElement.children,
-                (el) => el.offsetTop + el.offsetHeight,
-              ),
-            );
-            return `M${x} ${y} V${rowBottom + 12} H8 V${endY - 15} H${endX} V${endY}`;
-          }
-          const mid = (y + endY) / 2;
-          return `M${x} ${y} C${x} ${mid},${endX} ${mid},${endX} ${endY}`;
-        }),
-      );
-    }
-    const target = byId.get(current || added[0]) || buttons[0];
     const view = viewport.current;
     let centered = false;
-    function updateLayout() {
-      measure();
-      if (!centered && target && view.clientWidth && view.clientHeight) {
+    // Measure the cards (titles wrap, so heights differ), then lay the graph out.
+    function update() {
+      const sizes = {};
+      for (const el of buttons)
+        sizes[el.dataset.node] = { width: el.offsetWidth, height: el.offsetHeight };
+      const next = layoutGraph(tree, sizes, compact);
+      setLayout(next);
+      const targetId = current || added[0] || tree.nodes[0]?.id;
+      const target = next.nodes[targetId];
+      const el = targetId && canvas.querySelector(`[data-node="${CSS.escape(targetId)}"]`);
+      if (!centered && target && el && view.clientWidth && view.clientHeight) {
+        const offset = Math.max(0, (view.clientWidth - next.width) / 2); // graph is centred
         view.scrollLeft =
-          target.offsetLeft - (view.clientWidth - target.offsetWidth) / 2;
-        view.scrollTop = Math.max(0, target.offsetTop - view.clientHeight / 3);
+          offset + target.left - (view.clientWidth - el.offsetWidth) / 2;
+        view.scrollTop = Math.max(0, target.top - view.clientHeight / 3);
         centered = true;
       }
     }
-    const observer = new ResizeObserver(updateLayout);
-    [view, canvas, ...buttons].forEach((el) => observer.observe(el));
-    updateLayout();
+    const observer = new ResizeObserver(update);
+    buttons.forEach((el) => observer.observe(el));
+    update();
     return () => observer.disconnect();
   }, [tree, current, added[0], compact]);
 
-  if (!rows.length) return <Notice>No concepts are available yet.</Notice>;
+  if (!tree.nodes.length) return <Notice>No concepts are available yet.</Notice>;
   const prerequisites = tree.edges
     .filter((edge) => edge.child_id === locked?.id)
     .map((edge) => tree.nodes.find((node) => node.id === edge.parent_id));
@@ -103,7 +103,15 @@ export default function ConceptMap({
         ref={viewport}
         aria-label="Concept prerequisite map"
       >
-        <div className="concept-graph" ref={graph}>
+        <div
+          className="concept-graph"
+          ref={graph}
+          style={
+            layout
+              ? { width: layout.width, height: layout.height }
+              : { visibility: "hidden" } // first pass: measuring the cards
+          }
+        >
           <svg aria-hidden="true">
             <defs>
               <marker
@@ -118,7 +126,7 @@ export default function ConceptMap({
                 <path d="M0 0 L8 4 L0 8Z" fill="#94ba9b" />
               </marker>
             </defs>
-            {paths.map((d, i) => (
+            {layout?.edges.map((d, i) => (
               <path
                 key={i}
                 d={d}
@@ -129,30 +137,26 @@ export default function ConceptMap({
               />
             ))}
           </svg>
-          {rows.map((row, index) => (
-            <div className="concept-row" key={index}>
-              {row.map((node) => (
-                <button
-                  key={node.id}
-                  data-node={node.id}
-                  data-row={index}
-                  aria-current={current === node.id ? "step" : undefined}
-                  className={`concept-node ${node.status} ${added.includes(node.id) ? "new-concept" : ""}`}
-                  onClick={() =>
-                    node.status === "locked"
-                      ? setLocked(node)
-                      : go("lesson", tree.id, node.id)
-                  }
-                >
-                  <b>{node.title}</b>
-                  <span>
-                    {labels[node.status]}
-                    {current === node.id && " · Current lesson"}
-                    {added.includes(node.id) && " · New"}
-                  </span>
-                </button>
-              ))}
-            </div>
+          {tree.nodes.map((node) => (
+            <button
+              key={node.id}
+              data-node={node.id}
+              aria-current={current === node.id ? "step" : undefined}
+              className={`concept-node ${node.status} ${added.includes(node.id) ? "new-concept" : ""}`}
+              style={layout?.nodes[node.id]}
+              onClick={() =>
+                node.status === "locked"
+                  ? setLocked(node)
+                  : go("lesson", tree.id, node.id)
+              }
+            >
+              <b>{node.title}</b>
+              <span>
+                {labels[node.status]}
+                {current === node.id && " · Current lesson"}
+                {added.includes(node.id) && " · New"}
+              </span>
+            </button>
           ))}
         </div>
       </div>
