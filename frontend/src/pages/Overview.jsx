@@ -1,7 +1,17 @@
+import ConceptMap from "../ConceptMap";
 import KnowledgeGaps from "./KnowledgeGaps";
 import React, { useState } from "react";
-import { Icon, PageTitle, TreeCard, done, percent, url } from "../ui";
-export function Dashboard({ trees }) {
+import {
+  CreateTreeAction,
+  Experience,
+  Icon,
+  PageTitle,
+  TreeCard,
+  done,
+  percent,
+  url,
+} from "../ui";
+export function Dashboard({ trees, xp, onDelete, removing }) {
   const current =
     trees.find((t) => t.id === localStorage.getItem("recentTree")) || trees[0];
   const next = current?.nodes.find((n) => n.status === "unlocked");
@@ -27,16 +37,14 @@ export function Dashboard({ trees }) {
   return (
     <>
       <PageTitle label="YOUR WORKSPACE" title="Learning dashboard">
-        <a className="button primary" href={url("create")}>
-          <Icon name="plus" size={17} /> Create tree
-        </a>
+        {current && <CreateTreeAction />}
       </PageTitle>
       <section className="hero">
         <div className="terrain" />
         <div className="hero-copy">
           <small>
             <i />{" "}
-            {current ? "FEATURED LEARNING TREE" : "START YOUR LEARNING PATH"}
+            {current ? "RECENT LEARNING TREE" : "START YOUR LEARNING PATH"}
           </small>
           <h2>{current?.title || "Build your first tree"}</h2>
           <p>
@@ -46,21 +54,24 @@ export function Dashboard({ trees }) {
                 ? "Explore your concept map and revisit lessons."
                 : "Choose a topic and grow your understanding, one concept at a time."}
           </p>
-          <a
-            className="button light"
-            href={
-              next
-                ? url("lesson", current.id, next.id)
-                : current
-                  ? url("map", current.id)
-                  : url("create")
-            }
-          >
-            <Icon name="book" size={17} />
-            {next ? "Open lesson" : current ? "View tree" : "Choose topic"}
-          </a>
+          {current ? (
+            <a className="button light" href={url("map", current.id)}>
+              View full tree
+            </a>
+          ) : (
+            <CreateTreeAction />
+          )}
         </div>
       </section>
+      {current && (
+        <section className="dashboard-map">
+          <p>
+            {done(current)} of {current.nodes.length} concepts completed
+          </p>
+          <ConceptMap tree={current} compact />
+        </section>
+      )}
+      <Experience xp={xp} />
       <div className="metrics">
         {metrics.map(([icon, value, label, color]) => (
           <div className="panel metric" key={label}>
@@ -79,7 +90,12 @@ export function Dashboard({ trees }) {
             <a href={url("trees")}>View all</a>
           </div>
           {trees.slice(0, 3).map((t) => (
-            <TreeCard key={t.id} tree={t} />
+            <TreeCard
+              key={t.id}
+              tree={t}
+              onDelete={onDelete}
+              removing={removing}
+            />
           ))}
           {!trees.length && <p>Your trees will appear here.</p>}
         </section>
@@ -97,16 +113,16 @@ export function Dashboard({ trees }) {
               {next?.description ||
                 "Open a learning tree to explore its lessons."}
             </p>
-            <a href={current ? url("map", current.id) : url("create")}>
-              Explore learning map
-            </a>
+            {current && (
+              <a href={url("map", current.id)}>Explore learning map</a>
+            )}
           </div>
         </section>
       </div>
     </>
   );
 }
-export function Trees({ trees }) {
+export function Trees({ trees, onDelete, removing }) {
   const [query, setQuery] = useState("");
   const matches = trees.filter((t) =>
     t.title.toLowerCase().includes(query.toLowerCase()),
@@ -114,9 +130,7 @@ export function Trees({ trees }) {
   return (
     <>
       <PageTitle label="LIBRARY" title="My learning trees">
-        <a className="button primary" href={url("create")}>
-          Create tree
-        </a>
+        <CreateTreeAction />
       </PageTitle>
       <input
         className="search"
@@ -127,7 +141,12 @@ export function Trees({ trees }) {
       />
       <div className="cards">
         {matches.map((t) => (
-          <TreeCard key={t.id} tree={t} />
+          <TreeCard
+            key={t.id}
+            tree={t}
+            onDelete={onDelete}
+            removing={removing}
+          />
         ))}
       </div>
       {!matches.length && (
@@ -186,7 +205,7 @@ export function Analytics({ trees }) {
     </>
   );
 }
-export function Achievements({ trees }) {
+export function Achievements({ trees, xp }) {
   const attempts = trees.flatMap((t) => t.history);
   const awards = [
     [
@@ -236,6 +255,7 @@ export function Achievements({ trees }) {
   return (
     <>
       <PageTitle label="PROGRESS" title="Achievements" />
+      <Experience xp={xp} />
       <p>{awards.filter((a) => a[2]).length} of 6 milestones earned</p>
       <div className="cards">
         {awards.map(([name, desc, earned, icon]) => (

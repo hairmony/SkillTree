@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { request, nodePath, treePath } from "../api";
 import { nextLesson } from "../learningPath";
 import { done, Notice, PageTitle, percent, url } from "../ui";
 import { ReadState, useRead } from "./Learning";
-export function Assessment({ tree, node, live, applyGrade }) {
+export function Assessment({ tree, node, applyGrade }) {
   const key = "quiz:" + tree.id + ":" + node.id;
   const [draft, setDraft] = useState(() => {
     try {
@@ -34,8 +34,11 @@ export function Assessment({ tree, node, live, applyGrade }) {
       setBusy(false);
     }
   }
+  const submitting = useRef(false);
   async function submit(e) {
     e.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError("");
     try {
@@ -71,9 +74,11 @@ export function Assessment({ tree, node, live, applyGrade }) {
         }
       }
       setError(
-        "We couldn’t confirm your submission. Your answers are saved in this tab. Try submitting again.",
+        e.message +
+          " We couldn’t confirm your submission. Your answers are saved in this tab. Try submitting again.",
       );
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -99,12 +104,9 @@ export function Assessment({ tree, node, live, applyGrade }) {
               ))}
             </select>
           </label>
-          <button className="primary" disabled={busy || !live} onClick={begin}>
+          <button className="primary" disabled={busy} onClick={begin}>
             {busy ? "Preparing questions…" : "Begin quiz"}
           </button>
-          {!live && (
-            <Notice>Assessments are unavailable in the sample tree.</Notice>
-          )}
         </div>
       ) : (
         <form onSubmit={submit}>
@@ -142,7 +144,6 @@ export function Assessment({ tree, node, live, applyGrade }) {
             className="primary"
             disabled={
               busy ||
-              !live ||
               Object.keys(draft.answers).length !== draft.quiz.questions.length
             }
           >
@@ -178,12 +179,35 @@ export function Results({ tree, node, evaluation }) {
               {data.results.filter((q) => q.correct).length} correct out of{" "}
               {data.results.length}
             </p>
-            {data.added.map((n) => (
-              <a className="row" key={n.id} href={url("lesson", tree.id, n.id)}>
-                {n.title}
-                <span>{n.kind} review</span>
-              </a>
-            ))}
+            {data.xp && <p className="xp-gain">+{data.xp.gained} XP earned</p>}
+            {data.xp?.level_up && (
+              <Notice>Level up! You reached level {data.xp.level}.</Notice>
+            )}
+            {data.added.length > 0 && (
+              <section className="growth">
+                <h2>Your learning tree has grown!</h2>
+                <p>
+                  {data.added.length} new{" "}
+                  {data.added.length === 1 ? "concept" : "concepts"} to explore
+                </p>
+                <ul>
+                  {data.added.map((n) => (
+                    <li key={n.id}>{n.title}</li>
+                  ))}
+                </ul>
+                <a
+                  className="button"
+                  href={url(
+                    "map",
+                    tree.id,
+                    tree.history.find((q) => q.node_id === node.id)?.quiz_id ??
+                      "",
+                  )}
+                >
+                  View on updated tree
+                </a>
+              </section>
+            )}
             {typeof data.passed === "boolean" && (
               <p>
                 {data.passed
@@ -204,11 +228,7 @@ export function Results({ tree, node, evaluation }) {
                 ].join(", ")}
               </p>
             )}
-            {data.added_error && (
-              <Notice>
-                Follow-up concepts could not be added for this assessment.
-              </Notice>
-            )}
+            {data.added_error && <Notice>{data.added_error}</Notice>}
           </section>
           {data.results.map((q, i) => {
             const answer = (id) => q.options.find((o) => o.id === id)?.text;

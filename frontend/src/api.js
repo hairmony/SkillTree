@@ -25,23 +25,33 @@ export async function request(
     );
   }
   const data = await response.json();
-  if (!response.ok)
-    throw new Error(
-      typeof data.detail === "string"
-        ? data.detail
-        : "The request could not be completed.",
+  if (!response.ok) {
+    const detail = Array.isArray(data.detail)
+      ? data.detail
+          .map((item) => item.msg)
+          .filter(Boolean)
+          .join(" ")
+      : data.detail;
+    const error = new Error(
+      detail || `Request failed (HTTP ${response.status}).`,
     );
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 export async function loadWorkspace() {
   const trees = await request("/trees");
   return Promise.all(
-    trees.map(async (tree) => {
-      const [graph, history] = await Promise.all([
-        request(treePath(tree.id)),
-        request(treePath(tree.id) + "/quizzes"),
-      ]);
-      return { ...tree, ...graph, history };
-    }),
+    // FastAPI seeds this reserved example on every startup.
+    trees
+      .filter((tree) => tree.id !== "demo")
+      .map(async (tree) => {
+        const [graph, history] = await Promise.all([
+          request(treePath(tree.id)),
+          request(treePath(tree.id) + "/quizzes"),
+        ]);
+        return { ...tree, ...graph, history };
+      }),
   );
 }

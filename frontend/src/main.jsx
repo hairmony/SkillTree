@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { loadWorkspace } from "./api";
+import { loadWorkspace, request, treePath } from "./api";
 import { Icon, Notice, go, url, useRoute } from "./ui";
 import { Dashboard, Trees, Analytics, Achievements } from "./pages/Overview";
 import { Lesson, LearningMap } from "./pages/Learning";
 import CreateTree from "./pages/CreateTree";
 import { Assessment, Results } from "./pages/Assessment";
 import { Avatar, Profile, ProfileMenu } from "./pages/Profile";
-import sample from "./sample.json";
+import { useTreeJob } from "./useTreeJob";
 import "./style.css";
 
-const sampleTrees = [
-  { id: "demo", title: "Linear Algebra", ...sample.tree, history: [] },
-];
 const primaryNav = [
   ["dashboard", "Dashboard"],
   ["trees", "My trees"],
@@ -21,8 +18,11 @@ const primaryNav = [
 ];
 function App() {
   const [page = "dashboard", id, nodeId] = useRoute(),
-    [trees, setTrees] = useState(sampleTrees),
-    [live, setLive] = useState(false),
+    [trees, setTrees] = useState([]),
+    [connectionError, setConnectionError] = useState(""),
+    [xp, setXp] = useState(null),
+    [feedback, setFeedback] = useState(""),
+    [removing, setRemoving] = useState(null),
     [loading, setLoading] = useState(true),
     [menu, setMenu] = useState(false);
   const [name, setName] = useState(
@@ -48,31 +48,66 @@ function App() {
         tree.id === treeId ? { ...tree, ...result.tree } : tree,
       ),
     );
+    if (result.xp) setXp(result.xp);
     go("results", treeId, nodeId);
-    loadWorkspace()
-      .then(setTrees)
-      .catch(() => {});
+    refresh().catch(() => {});
   }
+  const revision = useRef(0);
   const refresh = useCallback(async () => {
+    const version = ++revision.current;
     try {
-      const data = await loadWorkspace();
+      const [data, totals] = await Promise.all([
+        loadWorkspace(),
+        request("/xp"),
+      ]);
+      if (version !== revision.current) return;
       setTrees(data);
-      setLive(true);
-    } catch (e) {
-      setTrees(sampleTrees);
-      setLive(false);
-      throw e;
+      setXp(totals);
+      setConnectionError("");
+    } catch (error) {
+      if (version === revision.current) setConnectionError(error.message);
+      throw error;
     } finally {
-      setLoading(false);
+      if (version === revision.current) setLoading(false);
     }
   }, []);
+  const job = useTreeJob(refresh);
+  async function deleteTree(tree) {
+    if (
+      removing ||
+      !window.confirm(
+        `Delete “${tree.title}” and its lessons and quiz history? This cannot be undone.`,
+      )
+    )
+      return;
+    setRemoving(tree.id);
+    try {
+      await request(treePath(tree.id), undefined, "DELETE");
+      ++revision.current;
+      setTrees((previous) => previous.filter((item) => item.id !== tree.id));
+      if (localStorage.getItem("recentTree") === tree.id)
+        localStorage.removeItem("recentTree");
+      if (evaluation?.treeId === tree.id) setEvaluation(null);
+      if (job.status?.id === tree.id) job.dismiss();
+      for (const key of Object.keys(sessionStorage)) {
+        if (key.startsWith("quiz:" + tree.id + ":"))
+          sessionStorage.removeItem(key);
+      }
+      setFeedback(`Deleted “${tree.title}”.`);
+      await refresh().catch(() => {});
+    } catch (error) {
+      setFeedback(`Could not delete “${tree.title}”. ${error.message}`);
+    } finally {
+      setRemoving(null);
+    }
+  }
   useEffect(() => {
     refresh().catch(() => {});
   }, [refresh]);
   useEffect(() => {
     setMenu(false);
-    if (id) localStorage.setItem("recentTree", id);
-  }, [page, id, nodeId]);
+    if (trees.some((t) => t.id === id)) localStorage.setItem("recentTree", id);
+  }, [page, id, nodeId, trees]);
   const section = page || "dashboard",
     tree = trees.find((t) => t.id === id),
     node = tree?.nodes.find((n) => n.id === nodeId);
@@ -94,29 +129,59 @@ function App() {
   };
   let body;
   if (loading) body = <Notice>Opening your workspace…</Notice>;
-  else if (section === "dashboard") body = <Dashboard trees={trees} />;
-  else if (section === "trees") body = <Trees trees={trees} />;
+  else if (connectionError)
+    body = (
+      <Notice>
+        Cannot load your learning workspace. {connectionError}{" "}
+        <button
+          onClick={() => {
+            setLoading(true);
+            refresh().catch(() => {});
+          }}
+        >
+          Retry Connection
+        </button>
+      </Notice>
+    );
+  else if (section === "dashboard")
+    body = (
+      <Dashboard
+        trees={trees}
+        xp={xp}
+        onDelete={deleteTree}
+        removing={removing}
+      />
+    );
+  else if (section === "trees")
+    body = <Trees trees={trees} onDelete={deleteTree} removing={removing} />;
   else if (section === "analytics") body = <Analytics trees={trees} />;
-  else if (section === "achievements") body = <Achievements trees={trees} />;
+  else if (section === "achievements")
+    body = <Achievements trees={trees} xp={xp} />;
   else if (section === "profile" || section === "settings")
     body = (
       <Profile
+        xp={xp}
         name={name}
         saveName={saveName}
         editing={section === "settings"}
       />
     );
-  else if (section === "create")
-    body = <CreateTree live={live} refresh={refresh} />;
+  else if (section === "create") body = <CreateTree job={job} />;
   else if (section === "map" && tree)
-    body = <LearningMap tree={tree} live={live} />;
-  else if (section === "lesson" && node && node.status !== "locked")
-    body = <Lesson tree={tree} node={node} live={live} />;
-  else if (section === "quiz" && node?.status === "unlocked")
     body = (
-      <Assessment tree={tree} node={node} live={live} applyGrade={applyGrade} />
+      <LearningMap
+        tree={tree}
+        added={
+          tree.history.find((q) => String(q.quiz_id) === nodeId)?.added_nodes ??
+          (evaluation?.treeId === id ? evaluation.added?.map((n) => n.id) : [])
+        }
+      />
     );
-  else if (section === "results" && live && node)
+  else if (section === "lesson" && node && node.status !== "locked")
+    body = <Lesson tree={tree} node={node} />;
+  else if (section === "quiz" && node?.status === "unlocked")
+    body = <Assessment tree={tree} node={node} applyGrade={applyGrade} />;
+  else if (section === "results" && node)
     body = (
       <Results
         tree={tree}
@@ -186,6 +251,32 @@ function App() {
           </a>
         </div>
         <div className="content" key={[section, id, nodeId].join("/")}>
+          {job.status && (
+            <Notice>
+              {job.status.state === "done"
+                ? "Your learning tree is ready. "
+                : ""}
+              {job.status.message}{" "}
+              {job.status.state === "done" && (
+                <a href={url("map", job.status.id)} onClick={job.dismiss}>
+                  Open Tree
+                </a>
+              )}
+              {job.status.state === "paused" && (
+                <button onClick={job.retry}>Check again</button>
+              )}
+              {job.status.state === "failed" && (
+                <a href={url("create")}>Create tree</a>
+              )}
+              {!job.busy && <button onClick={job.dismiss}>Dismiss</button>}
+            </Notice>
+          )}
+          {feedback && (
+            <Notice>
+              {feedback}{" "}
+              <button onClick={() => setFeedback("")}>Dismiss</button>
+            </Notice>
+          )}
           {body}
         </div>
       </main>

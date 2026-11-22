@@ -1,64 +1,17 @@
-import React, { useEffect, useState } from "react";
-import { request, treePath } from "../api";
-import { go, Notice, PageTitle } from "../ui";
-export default function CreateTree({ live, refresh }) {
+import React, { useState } from "react";
+import { PageTitle } from "../ui";
+export default function CreateTree({ job }) {
   const [topic, setTopic] = useState(""),
     [goal, setGoal] = useState(""),
     [notes, setNotes] = useState("");
-  const [job, setJob] = useState(
-    () => sessionStorage.getItem("activeTreeJob") || "",
-  );
-  const [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [retry, setRetry] = useState(0);
-  useEffect(() => {
-    if (!job || !live) return;
-    let active = true,
-      timer;
-    async function poll() {
-      try {
-        const status = await request(treePath(job) + "/status");
-        if (!active) return;
-        setMessage(status.message);
-        if (status.state === "done") {
-          await refresh();
-          if (!active) return;
-          sessionStorage.removeItem("activeTreeJob");
-          go("map", job);
-        } else if (status.state === "failed") {
-          sessionStorage.removeItem("activeTreeJob");
-          setJob("");
-          setError(status.message);
-        } else timer = setTimeout(poll, 2000);
-      } catch (e) {
-        if (active) setError(e.message);
-      }
-    }
-    poll();
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [job, live, retry, refresh]);
-  async function submit(e) {
-    e.preventDefault();
-    if (!topic.trim() || busy || job) return;
-    setBusy(true);
-    setError("");
-    try {
-      const data = await request("/trees/create", {
+  function submit(event) {
+    event.preventDefault();
+    if (topic.trim())
+      job.start({
         topic: topic.trim(),
         description: goal.trim(),
         text: notes.trim() || null,
       });
-      sessionStorage.setItem("activeTreeJob", data.tree_id);
-      setJob(data.tree_id);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
   }
   return (
     <>
@@ -96,34 +49,9 @@ export default function CreateTree({ live, refresh }) {
             />
           </label>
         </details>
-        {!live && (
-          <Notice>
-            Tree creation is temporarily unavailable. Try again later.
-          </Notice>
-        )}
-        <button
-          className="primary"
-          disabled={!live || busy || !!job || !topic.trim()}
-        >
-          {job ? "Growing your tree…" : busy ? "Starting…" : "Generate tree"}
+        <button className="primary" disabled={job.busy || !topic.trim()}>
+          {job.busy ? "Growing your tree…" : "Generate tree"}
         </button>
-        {job && <Notice>{message || "Preparing your learning tree…"}</Notice>}
-        {error && (
-          <Notice>
-            {error}{" "}
-            {job && (
-              <button
-                type="button"
-                onClick={() => {
-                  setError("");
-                  setRetry((r) => r + 1);
-                }}
-              >
-                Check again
-              </button>
-            )}
-          </Notice>
-        )}
       </form>
     </>
   );

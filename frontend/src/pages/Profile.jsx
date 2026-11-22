@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { PageTitle, url } from "../ui";
+import { Experience, PageTitle, url } from "../ui";
 
 export function Avatar({ name }) {
   return (
@@ -56,7 +56,7 @@ export function ProfileMenu({ name, route }) {
   );
 }
 
-export function Profile({ name, saveName, editing }) {
+export function Profile({ name, saveName, editing, xp }) {
   const [value, setValue] = useState(name === "Student" ? "" : name);
   const [message, setMessage] = useState("");
   function submit(e) {
@@ -71,6 +71,7 @@ export function Profile({ name, saveName, editing }) {
   return (
     <>
       <PageTitle title={editing ? "Settings" : "My Profile"} />
+      {!editing && <Experience xp={xp} />}
       <section className="panel pad form">
         <div className="profile-card">
           <Avatar name={name} />

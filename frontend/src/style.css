@@ -506,33 +506,138 @@ summary + label {
   background-image: radial-gradient(#445447 1px, transparent 1px);
   background-size: 16px 16px;
 }
-.graph {
+.graph-scroll {
+  max-height: 72vh;
+}
+.graph-scroll.compact {
+  max-height: 260px;
+}
+.concept-graph {
   position: relative;
+  width: max-content;
+  min-width: 100%;
+  display: grid;
+  gap: 52px;
+  padding: 24px;
 }
-.graph-node {
+.concept-graph svg {
   position: absolute;
-  width: 154px;
-  height: 64px;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.concept-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
+  justify-content: center;
+  align-items: start;
+  gap: 24px;
+}
+.concept-node {
+  z-index: 1;
+  display: grid;
+  align-content: center;
+  width: 164px;
+  min-height: 68px;
+  padding: 10px;
+  gap: 4px;
   line-height: 1.25;
-  text-align: left;
-  background: #233429;
-  color: #e4efdf;
-  padding: 9px;
-  overflow: auto;
+  overflow-wrap: anywhere;
+  background: #293e31;
+  border-color: #74966f;
 }
-.graph-node span {
-  font-size: 0.75rem;
-  color: #b6c4b5;
+.concept-node span {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #d1ddce;
 }
-.graph-node.locked {
-  background: #1e2822;
+.concept-node.locked {
+  background: #202924;
+  border-style: dashed;
+  border-color: #69766d;
 }
-.graph-node[aria-pressed="true"] {
-  border: 2px solid var(--lime);
+.concept-node.mastered {
+  background: #354637;
+  border-color: var(--lime);
+}
+.concept-node[aria-current],
+.concept-node.new-concept {
+  outline: 2px solid #dfbe7c;
+  outline-offset: 2px;
+}
+.compact .concept-graph {
+  padding: 16px;
+  gap: 36px;
+}
+.compact .concept-row {
+  gap: 16px;
+}
+.compact .concept-node {
+  width: 136px;
+  font-size: 0.85rem;
+}
+.lesson-cols > *,
+.dashboard-bottom > *,
+.lesson-map {
+  min-width: 0;
+}
+.lesson-map summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.lesson-map .graph-scroll {
+  margin: 14px 0 0;
+}
+.experience > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.experience strong {
+  margin-left: auto;
+  color: var(--lime);
+}
+.experience small {
+  margin: 0;
+}
+.experience progress {
+  margin: 15px 0 5px;
+  height: 8px;
+}
+.experience > span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.tree-entry {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-right: 12px;
+}
+.tree-entry .tree-card {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.delete-action {
+  font-size: 0.8rem;
+  color: #eab5ad;
+  background: transparent;
+  padding: 5px 9px;
+}
+.growth {
+  border-left: 3px solid var(--lime);
+  padding: 12px 18px;
+}
+.xp-gain {
+  color: var(--lime);
+  font-weight: 700;
+}
+.dashboard-map {
+  margin: 14px 0;
+}
+.notice > button,
+.notice > a {
+  margin: 4px 6px;
 }
 .prose {
   white-space: pre-line;

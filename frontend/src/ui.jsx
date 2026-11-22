@@ -84,22 +84,65 @@ export function PageTitle({ label, title, children }) {
     </header>
   );
 }
-export function TreeCard({ tree }) {
+export function CreateTreeAction() {
+  return (
+    <a className="button primary" href={url("create")}>
+      <Icon name="plus" size={17} />
+      Create tree
+    </a>
+  );
+}
+
+export function Experience({ xp }) {
+  return (
+    <section className="panel pad experience" aria-label="Experience points">
+      <div>
+        <span className="round gold">
+          <Icon name="bolt" />
+        </span>
+        <div>
+          <small>EXPERIENCE</small>
+          <h2>Level {xp.level}</h2>
+        </div>
+        <strong>{xp.xp} total XP</strong>
+      </div>
+      <progress
+        aria-label="Experience toward next level"
+        value={xp.xp_current}
+        max={xp.xp_max}
+      />
+      <span>
+        {xp.xp_current} / {xp.xp_max} XP toward level {xp.level + 1}
+      </span>
+    </section>
+  );
+}
+export function TreeCard({ tree, onDelete, removing }) {
   const completed = done(tree);
   return (
-    <a className="panel tree-card" href={url("map", tree.id)}>
-      <span className="iconbox">
-        <Icon name="map" />
-      </span>
-      <div>
-        <h3>{tree.title}</h3>
-        <p>
-          {tree.nodes.length} concepts · {completed} completed
-        </p>
-        <progress max={tree.nodes.length || 1} value={completed} />
-      </div>
-      <Icon name="chevron" />
-    </a>
+    <article className="panel tree-entry">
+      <a className="tree-card" href={url("map", tree.id)}>
+        <span className="iconbox">
+          <Icon name="map" />
+        </span>
+        <div>
+          <h3>{tree.title}</h3>
+          <p>
+            {tree.nodes.length} concepts · {completed} completed
+          </p>
+          <progress max={tree.nodes.length || 1} value={completed} />
+        </div>
+        <Icon name="chevron" />
+      </a>
+      <button
+        className="delete-action"
+        disabled={Boolean(removing)}
+        aria-label={"Delete " + tree.title}
+        onClick={() => onDelete(tree)}
+      >
+        {removing === tree.id ? "Deleting…" : "Delete"}
+      </button>
+    </article>
   );
 }
 export function SafeLink({ href, children }) {

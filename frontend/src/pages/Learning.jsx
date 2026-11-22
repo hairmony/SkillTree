@@ -1,121 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { request, treePath, nodePath } from "../api";
-import { Icon, Notice, PageTitle, SafeLink, done, percent, url } from "../ui";
-import sample from "../sample.json";
-const statusText = {
-  locked: "Locked",
-  unlocked: "Ready to study",
-  mastered: "Completed",
-};
-function layout(tree) {
-  const parents = new Map(tree.nodes.map((n) => [n.id, []]));
-  tree.edges.forEach((e) => parents.get(e.child_id).push(e.parent_id));
-  const levels = new Map();
-  function depth(id) {
-    if (!levels.has(id))
-      levels.set(id, Math.max(0, ...parents.get(id).map((p) => depth(p) + 1)));
-    return levels.get(id);
-  }
-  const columns = [];
-  for (const node of tree.nodes) {
-    const level = depth(node.id);
-    (columns[level] ??= []).push(node);
-  }
-  const height = Math.max(...columns.map((c) => c.length), 1) * 100 + 20;
-  const points = {};
-  columns.forEach((col, i) =>
-    col.forEach((node, j) => {
-      points[node.id] = {
-        x: i * 197 + 16,
-        y: (height - col.length * 100) / 2 + j * 100 + 15,
-      };
-    }),
-  );
-  return { points, height, width: columns.length * 197 + 16 };
-}
-export function LearningMap({ tree, live }) {
-  const [selected, setSelected] = useState(
-    tree.nodes.find((n) => n.status === "unlocked")?.id || tree.nodes[0]?.id,
-  );
-  const node = tree.nodes.find((n) => n.id === selected);
-  const { points, width, height } = layout(tree);
+import { request, nodePath } from "../api";
+import { Notice, PageTitle, SafeLink, done, url } from "../ui";
+import ConceptMap from "../ConceptMap";
+export function LearningMap({ tree, added }) {
   return (
     <>
       <PageTitle label="LEARNING MAP" title={tree.title} />
       <p>
-        {tree.nodes.length} concepts · {done(tree)} completed
+        {done(tree)} of {tree.nodes.length} concepts completed
       </p>
-      <section
-        className="panel graph-scroll"
-        aria-label="Concept prerequisite map"
-      >
-        <div className="graph" style={{ width, height }}>
-          <svg aria-hidden="true" width={width} height={height}>
-            {tree.edges.map((e) => {
-              const a = points[e.parent_id],
-                b = points[e.child_id];
-              const x = a.x + 154,
-                y = a.y + 32,
-                end = b.y + 32;
-              return (
-                <path
-                  key={e.parent_id + "-" + e.child_id}
-                  d={`M${x} ${y} C${x + 24} ${y},${b.x - 24} ${end},${b.x} ${end}`}
-                  fill="none"
-                  stroke="#6c8978"
-                  strokeWidth="2"
-                />
-              );
-            })}
-          </svg>
-          {tree.nodes.map((n) => (
-            <button
-              key={n.id}
-              aria-pressed={selected === n.id}
-              className={"graph-node " + n.status}
-              style={{ left: points[n.id].x, top: points[n.id].y }}
-              onClick={() => setSelected(n.id)}
-            >
-              <b>{n.title}</b>
-              <span>{statusText[n.status]}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-      {node && (
-        <article className="panel pad">
-          <small>{node.kind.toUpperCase()} CONCEPT</small>
-          <h2>{node.title}</h2>
-          <p>{node.description}</p>
-          <h3>Learning objectives</h3>
-          <ul>
-            {node.objectives.map((o) => (
-              <li key={o}>{o}</li>
-            ))}
-          </ul>
-          {node.status === "locked" ? (
-            <p>
-              Prerequisites ·{" "}
-              {tree.edges
-                .filter((e) => e.child_id === node.id)
-                .map((e) => tree.nodes.find((n) => n.id === e.parent_id).title)
-                .join(", ")}
-            </p>
-          ) : (
-            <a
-              className="button primary"
-              href={url("lesson", tree.id, node.id)}
-            >
-              Open lesson
-            </a>
-          )}
-        </article>
-      )}
-      <PassageSearch tree={tree} live={live} />
+      <ConceptMap tree={tree} added={added} />
+      <PassageSearch tree={tree} />
     </>
   );
 }
-function PassageSearch({ tree, live }) {
+function PassageSearch({ tree }) {
   const [query, setQuery] = useState(""),
     [rows, setRows] = useState(null),
     [error, setError] = useState(""),
@@ -148,11 +47,10 @@ function PassageSearch({ tree, live }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button disabled={!live || busy || !query.trim()}>
+        <button disabled={busy || !query.trim()}>
           {busy ? "Searching…" : "Search"}
         </button>
       </form>
-      {!live && <p>Source search is unavailable in the sample tree.</p>}
       {error && <Notice>{error}</Notice>}
       {rows?.map((r) => (
         <article key={r.id}>
@@ -195,10 +93,9 @@ export function ReadState({ error, reload }) {
     </Notice>
   );
 }
-export function Lesson({ tree, node, live }) {
+export function Lesson({ tree, node }) {
   const { data, error, reload } = useRead(
     nodePath(tree.id, node.id) + "/content",
-    live ? null : sample.lesson,
   );
   return (
     <>
@@ -223,6 +120,13 @@ export function Lesson({ tree, node, live }) {
           )}
         </article>
         <aside>
+          <details
+            className="panel pad lesson-map"
+            open={window.matchMedia("(min-width: 850px)").matches}
+          >
+            <summary>Learning map</summary>
+            <ConceptMap tree={tree} current={node.id} compact />
+          </details>
           <section className="panel pad">
             <small>STUDY GUIDE</small>
             <h2>Objectives</h2>
