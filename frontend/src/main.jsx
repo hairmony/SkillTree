@@ -202,7 +202,7 @@ function App() {
   return (
     <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className={"sidebar " + (menu ? "open" : "")}>
-        {/* desktop only: same height and place as the topbar ☰, so it doesn't jump */}
+        {/* closes the sidebar; same height and place as the topbar ☰, so it doesn't jump */}
         <div className="brand-row">
           <button
             className="hamburger sidebar-close"

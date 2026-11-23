@@ -17,17 +17,18 @@ import { ACHIEVEMENTS } from "../achievements";
 // shown on the Dashboard and Analytics tabs.
 function Metrics({ trees }) {
   const quizzes = trees.flatMap((t) => t.history);
+  // icons are in assets/analytics/
   const metrics = [
-    ["trees", trees.length, "Skill trees", "mint"],
+    ["skill-trees", trees.length, "Skill trees", "mint"],
     [
-      "book",
+      "concepts-completed",
       trees.reduce((sum, t) => sum + done(t), 0),
       "Concepts completed",
       "lilac",
     ],
-    ["target", quizzes.length, "Quizzes taken", "gold"],
+    ["quizzes-taken", quizzes.length, "Quizzes taken", "gold"],
     [
-      "bolt",
+      "average-score",
       quizzes.length
         ? percent(quizzes.reduce((s, q) => s + q.score, 0) / quizzes.length)
         : "—",
@@ -40,7 +41,7 @@ function Metrics({ trees }) {
       {metrics.map(([icon, value, label, color]) => (
         <div className="panel metric" key={label}>
           <span className={"round " + color}>
-            <Icon name={icon} />
+            <Icon name={"analytics/" + icon} />
           </span>
           <strong>{value}</strong>
           <span>{label}</span>

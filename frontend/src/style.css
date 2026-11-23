@@ -842,9 +842,6 @@ li {
   }
 }
 @media (max-width: 800px) {
-  .brand-row {
-    display: none; /* phones keep the topbar ☰ and the scrim */
-  }
 }
 fieldset {
   min-width: 0;
@@ -922,6 +919,10 @@ legend {
   }
   .topbar {
     height: 54px;
+    padding-left: 8px; /* ☰ at the screen edge, same spot as the menu's own ☰ */
+  }
+  .brand-row {
+    height: 54px; /* match the phone topbar */
   }
 }
 @media (max-width: 550px) {
@@ -929,7 +930,7 @@ legend {
     padding-inline: 16px;
   }
   .topbar {
-    padding-inline: 12px;
+    padding-inline: 8px 12px;
   }
   .metrics {
     grid-template-columns: 1fr 1fr;
