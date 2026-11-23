@@ -145,12 +145,20 @@ export function Experience({ xp }) {
     </section>
   );
 }
+// each tree's icon colour: --tree-1 … --tree-N in style.css. Picked from the tree's id,
+// so it looks random but a tree always keeps the same colour.
+const TREE_COLOURS = 8;
+export function treeColour(id) {
+  let hash = 0;
+  for (const ch of String(id)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return `var(--tree-${(hash % TREE_COLOURS) + 1})`;
+}
 export function TreeCard({ tree, onDelete, removing }) {
   const completed = done(tree);
   return (
     <article className="panel tree-entry">
       <a className="tree-card" href={url("map", tree.id)}>
-        <span className="iconbox">
+        <span className="iconbox" style={{ "--tree-colour": treeColour(tree.id) }}>
           <Icon name="map" size={36} />
         </span>
         <div>

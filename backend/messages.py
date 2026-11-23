@@ -29,9 +29,22 @@ def reading_chunks(reading_message: str, first: int, last: int, total: int) -> s
 ADDING_NOTES = "Adding your material..."
 
 
+# how each source type is named in "Found ..." messages: (one, several)
+SOURCE_NAMES = {
+    "video": ("video", "videos"),
+    "paper": ("paper", "papers"),
+    "wikipedia": ("Wikipedia article", "Wikipedia articles"),
+    "wikibooks": ("Wikibooks page", "Wikibooks pages"),
+    "web": ("web page", "web pages"),
+}
+
+
 def found_summary(counts: dict[str, int]) -> str:
-    # counts: 2 video, 3 paper
-    return ", ".join(f"{n} {t}" for t, n in counts.items()) or "user material"
+    # counts: {"video": 2, "paper": 3} -> "2 videos, 3 papers"
+    def name(t, n):
+        one, several = SOURCE_NAMES.get(t, (t, t + "s"))
+        return one if n == 1 else several
+    return ", ".join(f"{n} {name(t, n)}" for t, n in counts.items()) or "user material"
 
 
 def designing(found: str) -> str:

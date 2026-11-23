@@ -83,6 +83,16 @@
   --scrim: #0008; /* dark overlay behind the phone menu */
 
   /* skill tree map (ConceptMap.jsx) */
+  /* skill tree icon colours (ui.jsx treeColour sets color). If updating, also match the count in TREE_COLOURS. */
+  --tree-1: #bce99f; /* green */
+  --tree-2: #8fd6cc; /* teal */
+  --tree-3: #a3c9e1; /* blue */
+  --tree-4: #c7b1ed; /* lilac */
+  --tree-5: #eeb0cf; /* pink */
+  --tree-6: #e6c982; /* gold */
+  --tree-7: #f0b48a; /* orange */
+  --tree-8: #eaa5a5; /* red */
+
   --map-bg: #16221b; /* map background */
   --map-dots: #445447; /* dot grid on the background */
   --map-line: #94ba9b; /* prerequisite lines and arrowheads */
@@ -467,6 +477,11 @@ small {
   background: var(--green-bg);
   color: var(--green-text);
 }
+/* a tree's own colour (set per card in ui.jsx); background is a dark tint of it */
+.iconbox[style] {
+  color: var(--tree-colour);
+  background: color-mix(in srgb, var(--tree-colour) 18%, var(--panel));
+}
 .gold {
   background: var(--gold-bg);
   color: var(--gold-text);
@@ -566,8 +581,18 @@ progress::-webkit-progress-value {
 /* in a grid, the grid's gap is the only spacing: cards drop their own margins,
    so the space between cards is the same across and down */
 .cards > *,
+.cards > .tree-entry, /* .tree-entry sets its own margin further down; this wins */
 .metrics > * {
   margin: 0;
+}
+/* Skill Trees tab: two tree cards per row (one on narrow screens) */
+.cards.tree-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 700px) {
+  .cards.tree-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .award .round {
   float: right;

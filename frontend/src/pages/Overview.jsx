@@ -150,7 +150,7 @@ export function Trees({ trees, onDelete, removing }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className="cards">
+      <div className="cards tree-grid">
         {matches.map((t) => (
           <TreeCard
             key={t.id}
