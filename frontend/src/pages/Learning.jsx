@@ -105,6 +105,8 @@ function titleCase(text) {
         : word[0].toUpperCase() + word.slice(1),
   );
 }
+// a lesson source was opened: counted for the Source Diver achievement
+const opened = (url) => () => request("/sources/opened", { url }).catch(() => {});
 // lesson text with each [1] / [1, 2] citation number linking to that source
 function CitedText({ text, sources }) {
   return text.split(/(\[\d+(?:, \d+)*\])/).map((part, i) => {
@@ -124,6 +126,8 @@ function CitedText({ text, sources }) {
                   target="_blank"
                   rel="noreferrer"
                   title={source.title}
+                  onClick={opened(source.url)}
+                  onAuxClick={opened(source.url)}
                 >
                   {n}
                 </a>
@@ -204,7 +208,9 @@ export function Lesson({ tree, node }) {
                 <small>
                   [{i + 1}] {titleCase(s.type)}
                 </small>
-                <SafeLink href={s.url}>{s.title}</SafeLink>
+                <SafeLink href={s.url} onOpen={opened(s.url)}>
+                  {s.title}
+                </SafeLink>
               </p>
             ))}
             {data && !data.sources.length && (

@@ -109,7 +109,25 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     chosen TEXT,                          -- option id the learner picked
     answered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS opened_sources (  -- lesson sources the learner clicked (achievements)
+    user_id INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, url)
+);
 """
+
+
+def record_source_opened(url: str) -> None:
+    with connect() as conn:
+        conn.execute("INSERT OR IGNORE INTO opened_sources (user_id, url) VALUES (?, ?)",
+                     (USER_ID, url))
+
+
+def count_sources_opened() -> int:
+    with connect() as conn:
+        return conn.execute("SELECT COUNT(*) FROM opened_sources WHERE user_id = ?",
+                            (USER_ID,)).fetchone()[0]
 
 def add_chunks(tree_id: str, source: str, chunks: list[str],
                embeddings: list[list[float]]) -> None:

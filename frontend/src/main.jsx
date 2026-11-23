@@ -227,7 +227,7 @@ function App() {
           ))}
         </nav>
         <div className="nav-footer">
-          <ProfileMenu name={name} route={section} />
+          <ProfileMenu name={name} route={section} xp={xp} />
         </div>
       </aside>
       {menu && (

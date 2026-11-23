@@ -566,6 +566,23 @@ def get_xp():
     return xp.get_xp()
 
 
+class SourceOpened(BaseModel):
+    url: str
+
+
+@app.post("/sources/opened")
+def source_opened(req: SourceOpened):
+    """A lesson source link was clicked; each distinct link counts once (achievements)."""
+    database.record_source_opened(req.url[:2000])
+    return stats()
+
+
+@app.get("/stats")
+def stats():
+    """Activity counts the achievements need that aren't in the trees or quizzes."""
+    return {"sources_opened": database.count_sources_opened()}
+
+
 @app.get("/trees/{tree_id}/quizzes")
 def quiz_history(tree_id: str):
     """Submitted quizzes for this tree, newest first, with the ideas that were missed."""

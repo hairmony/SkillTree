@@ -220,13 +220,14 @@ export function Results({ tree, node, evaluation }) {
                 </a>
               </section>
             )}
+            {/* pass/fail line, turned off
             {typeof data.passed === "boolean" && (
               <p>
                 {data.passed
                   ? "Passed"
                   : "Review recommended · Below passing score"}
               </p>
-            )}
+            )} */}
             {data.results.some((q) => !q.correct) && (
               <p>
                 Knowledge gaps ·{" "}

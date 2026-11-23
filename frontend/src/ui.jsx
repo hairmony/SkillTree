@@ -174,9 +174,9 @@ export function TreeCard({ tree, onDelete, removing }) {
     </article>
   );
 }
-export function SafeLink({ href, children }) {
+export function SafeLink({ href, children, onOpen }) {
   return /^https?:\/\//i.test(href || "") ? (
-    <a href={href} target="_blank" rel="noreferrer">
+    <a href={href} target="_blank" rel="noreferrer" onClick={onOpen} onAuxClick={onOpen}>
       {children} ↗
     </a>
   ) : (

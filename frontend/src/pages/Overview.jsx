@@ -1,5 +1,6 @@
 import ConceptMap from "../ConceptMap";
 import KnowledgeGaps from "./KnowledgeGaps";
+import { useRead } from "./Learning";
 import React, { useState } from "react";
 import {
   CreateTreeAction,
@@ -219,9 +220,10 @@ export function Analytics({ trees }) {
 export function Achievements({ trees, xp }) {
   // the list itself lives in src/achievements.js
   const quizzes = trees.flatMap((t) => t.history);
+  const stats = useRead("/stats").data; // e.g. sources opened
   const awards = ACHIEVEMENTS.map((a) => ({
     ...a,
-    unlocked: a.earned({ trees, quizzes, xp }),
+    unlocked: a.earned({ trees, quizzes, xp, stats }),
   }));
   return (
     <>
