@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { request, nodePath } from "../api";
-import { Notice, PageTitle, SafeLink, done, url } from "../ui";
+import { Icon, Notice, PageTitle, SafeLink, done, url } from "../ui";
 import ConceptMap from "../ConceptMap";
 import { LABELS } from "../labels";
 export function LearningMap({ tree, added }) {
@@ -94,13 +94,60 @@ export function ReadState({ error, reload }) {
     </Notice>
   );
 }
+const SMALL_WORDS = /^(a|an|and|as|at|but|by|for|in|nor|of|on|or|the|to|via|vs\.?|with)$/i;
+// source type labels: "wikipedia" -> "Wikipedia", "web page" -> "Web Page" (not used on source titles)
+function titleCase(text) {
+  return String(text).replace(/\S+/g, (word, at) =>
+    /[A-Z]/.test(word.slice(1))
+      ? word // RAGE, iPhone, JavaScript: leave as written
+      : at > 0 && SMALL_WORDS.test(word)
+        ? word.toLowerCase()
+        : word[0].toUpperCase() + word.slice(1),
+  );
+}
+// lesson text with each [1] / [1, 2] citation number linking to that source
+function CitedText({ text, sources }) {
+  return text.split(/(\[\d+(?:, \d+)*\])/).map((part, i) => {
+    if (i % 2 === 0) return part; // plain text between citations
+    const numbers = part.slice(1, -1).split(", ").map(Number);
+    return (
+      <span className="cite" key={i}>
+        [
+        {numbers.map((n, j) => {
+          const source = sources[n - 1];
+          return (
+            <React.Fragment key={j}>
+              {j > 0 && ", "}
+              {/^https?:\/\//i.test(source?.url || "") ? (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={source.title}
+                >
+                  {n}
+                </a>
+              ) : (
+                n
+              )}
+            </React.Fragment>
+          );
+        })}
+        ]
+      </span>
+    );
+  });
+}
 export function Lesson({ tree, node }) {
   const { data, error, reload } = useRead(
     nodePath(tree.id, node.id) + "/content",
   );
   return (
     <>
-      <a href={url("map", tree.id)}>‹ {tree.title}</a>
+      <a className="back-link" href={url("map", tree.id)}>
+        <Icon name="chevron_left" size={18} />
+        {tree.title}
+      </a>
       <PageTitle title={node.title} />
       <p>{node.description}</p>
       <div className="lesson-cols">
@@ -108,11 +155,13 @@ export function Lesson({ tree, node }) {
           <h2>Lesson overview</h2>
           {data ? (
             <>
-              <div className="prose">{data.details}</div>
+              <div className="prose">
+                <CitedText text={data.details} sources={data.sources} />
+              </div>
               <h2>Worked examples</h2>
               {data.examples.map((ex, i) => (
                 <p className="example" key={i}>
-                  {ex}
+                  <CitedText text={ex} sources={data.sources} />
                 </p>
               ))}
             </>
@@ -152,7 +201,9 @@ export function Lesson({ tree, node }) {
             <h2>Lesson sources</h2>
             {data?.sources.map((s, i) => (
               <p key={i}>
-                <small>{s.type}</small>
+                <small>
+                  [{i + 1}] {titleCase(s.type)}
+                </small>
                 <SafeLink href={s.url}>{s.title}</SafeLink>
               </p>
             ))}

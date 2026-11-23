@@ -116,9 +116,6 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
             <h2>Learning focus</h2>
           </div>
           <div className="panel focus">
-            <span className="round gold">
-              <Icon name="compass" />
-            </span>
             <small>NEXT STEP</small>
             <h3>{next?.title || "Choose a concept"}</h3>
             <p>

@@ -53,10 +53,10 @@ export const TITLES = {
   // the current page's name in the top bar ("Workspace › …").
   TOPBAR: {
     ...TAB_TITLES,
-    map: "Learning map",
+    map: "Skill Tree",
     lesson: "Lesson",
-    quiz: "Assessment",
-    results: "Answer review",
+    quiz: "Quiz",
+    results: "Quiz Review",
     create: LABELS.CREATE_TREE,
     profile: "My Profile",
     settings: "Settings",

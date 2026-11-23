@@ -160,7 +160,7 @@ export function TreeCard({ tree, onDelete, removing }) {
           </p>
           <progress max={tree.nodes.length || 1} value={completed} />
         </div>
-        <Icon name="chevron" />
+        <Icon name="chevron_right" />
       </a>
       <button
         className="delete-action"

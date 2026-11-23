@@ -113,8 +113,11 @@ small {
   display: flex;
   min-height: 100vh;
 }
+.app {
+  --sidebar-w: 264px; /* space the sidebar takes up beside the content */
+}
 .sidebar {
-  width: 264px;
+  width: var(--sidebar-w);
   flex: none;
   position: sticky;
   top: 0;
@@ -128,22 +131,32 @@ small {
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 9px;
   color: #f4f7eb;
-  font-size: 1.52rem;
+  font-size: 1.25rem;
   font-weight: 730;
   letter-spacing: -0.055em;
-  padding: 0 10px;
+  /* centred on the screen, not the topbar, so it doesn't move when the sidebar opens:
+     the topbar starts --sidebar-w from the left, so the screen's middle is at
+     50% - --sidebar-w / 2 of the topbar */
+  position: absolute;
+  left: calc(50% - var(--sidebar-w) / 2);
+  transform: translateX(-50%);
 }
 .brand img {
-  width: 36px;
+  width: 30px;
 }
 .brand:hover {
   text-decoration: none;
 }
+@media (max-width: 1200px) {
+  .brand-name {
+    display: none; /* icon only, so it doesn't run into the breadcrumb or profile */
+  }
+}
 .nav-title {
   padding: 0 15px;
-  margin: 52px 0 13px;
+  margin: 30px 0 13px;
   color: #90a296;
 }
 .sidebar nav {
@@ -204,6 +217,7 @@ small {
   align-items: center;
   gap: 10px;
   padding: 0 clamp(20px, 4vw, 62px);
+  position: relative; /* for the centred logo */
   border-bottom: 1px solid var(--border);
   font-size: 0.85rem;
   color: var(--muted);
@@ -449,9 +463,6 @@ progress::-webkit-progress-value {
 .focus {
   padding: 19px 20px;
 }
-.focus .round {
-  float: right;
-}
 .focus small {
   color: #d1be82;
 }
@@ -551,9 +562,8 @@ summary + label {
   background-image: radial-gradient(#445447 1px, transparent 1px);
   background-size: 16px 16px;
 }
-.graph-scroll {
-  max-height: 72vh;
-}
+/* the full map (skill tree page) grows to the tree's whole height; only the small
+   lesson-page map has a height limit */
 .graph-scroll.compact {
   max-height: 260px;
 }
@@ -718,9 +728,39 @@ li {
   background: none;
   border: 0;
 }
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+/* top of the sidebar: just its ☰, at the topbar's height and 8px from the screen edge,
+   so it sits exactly where the topbar ☰ is when the sidebar is closed */
+.brand-row {
+  display: flex;
+  align-items: center;
+  height: 67px;
+  margin: -26px -16px 0; /* cancel the sidebar's padding */
+  padding-left: 8px;
+  border-bottom: 1px solid var(--border);
+}
 @media (min-width: 801px) {
+  .app.sidebar-collapsed .topbar {
+    padding-left: 8px; /* ☰ at the screen edge */
+  }
+  .app.sidebar-collapsed {
+    --sidebar-w: 0px;
+  }
   .app.sidebar-collapsed .sidebar {
     display: none; /* content takes the full width */
+  }
+  /* sidebar open: its own ☰ closes it, so hide the topbar one */
+  .app:not(.sidebar-collapsed) .topbar .hamburger {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .brand-row {
+    display: none; /* phones keep the topbar ☰ and the scrim */
   }
 }
 fieldset {
@@ -734,8 +774,8 @@ legend {
   overflow-wrap: anywhere;
 }
 @media (max-width: 1050px) {
-  .sidebar {
-    width: 185px;
+  .app {
+    --sidebar-w: 185px;
   }
   .content {
     padding-inline: 24px;
@@ -745,6 +785,9 @@ legend {
   }
 }
 @media (max-width: 800px) {
+  .app {
+    --sidebar-w: 0px; /* the phone sidebar slides over the content */
+  }
   .sidebar {
     position: fixed;
     left: -240px;

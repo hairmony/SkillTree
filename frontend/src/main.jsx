@@ -202,10 +202,16 @@ function App() {
   return (
     <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className={"sidebar " + (menu ? "open" : "")}>
-        <a className="brand" href={url("dashboard")}>
-          <img src={appIconUrl} alt="" />
-          SkillTree
-        </a>
+        {/* desktop only: same height and place as the topbar ☰, so it doesn't jump */}
+        <div className="brand-row">
+          <button
+            className="hamburger sidebar-close"
+            aria-label="Collapse sidebar"
+            onClick={toggleNav}
+          >
+            <Icon name="menu" />
+          </button>
+        </div>
         <div className="nav-title">{TITLES.WORKSPACE.toUpperCase()}</div>
         <nav>
           {primaryNav.map(([key, title]) => (
@@ -241,8 +247,12 @@ function App() {
           >
             <Icon name="menu" />
           </button>
+          <a className="brand" href={url("dashboard")}>
+            <img src={appIconUrl} alt="" />
+            <span className="brand-name">SkillTree</span>
+          </a>
           <span>{TITLES.WORKSPACE}</span>
-          <Icon name="chevron" />
+          <Icon name="chevron_right" />
           <b>{TITLES.TOPBAR[section] || TITLES.TOPBAR.missing}</b>
           <a className="header-profile" href={url("profile")}>
             <Avatar name={name} />

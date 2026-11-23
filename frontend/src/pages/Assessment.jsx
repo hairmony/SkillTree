@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { request, nodePath, treePath } from "../api";
 import { nextLesson } from "../learningPath";
-import { done, Notice, PageTitle, percent, url } from "../ui";
+import { done, Icon, Notice, PageTitle, percent, url } from "../ui";
 import { ReadState, useRead } from "./Learning";
 import { LABELS } from "../labels";
 export function Assessment({ tree, node, applyGrade }) {
@@ -13,7 +13,12 @@ export function Assessment({ tree, node, applyGrade }) {
       return null;
     }
   });
-  const [count, setCount] = useState(5),
+  const sizes = useRead("/quiz/sizes").data; // min/max/default question count, set in backend main.py
+  const [chosen, setCount] = useState(null),
+    count = chosen ?? sizes?.default ?? 5,
+    options = sizes // every count from min to max
+      ? Array.from({ length: sizes.max - sizes.min + 1 }, (_, i) => sizes.min + i)
+      : [count],
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   function save(next) {
@@ -85,7 +90,10 @@ export function Assessment({ tree, node, applyGrade }) {
   }
   return (
     <>
-      <a href={url("lesson", tree.id, node.id)}>‹ Back to lesson</a>
+      <a className="back-link" href={url("lesson", tree.id, node.id)}>
+        <Icon name="chevron_left" size={18} />
+        Back to lesson
+      </a>
       <PageTitle title={node.title} />
       {!draft ? (
         <div className="panel pad form">
@@ -100,7 +108,7 @@ export function Assessment({ tree, node, applyGrade }) {
               value={count}
               onChange={(e) => setCount(Number(e.target.value))}
             >
-              {[3, 4, 5, 6].map((n) => (
+              {options.map((n) => (
                 <option key={n}>{n}</option>
               ))}
             </select>
@@ -167,7 +175,10 @@ export function Results({ tree, node, evaluation }) {
   );
   return (
     <>
-      <a href={url("map", tree.id)}>‹ Learning map</a>
+      <a className="back-link" href={url("map", tree.id)}>
+        <Icon name="chevron_left" size={18} />
+        Learning map
+      </a>
       <PageTitle title={node.title} />
       {!data ? (
         <ReadState error={error} reload={reload} />
