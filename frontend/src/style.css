@@ -216,18 +216,15 @@ small {
   align-items: center;
   gap: 9px;
   color: var(--brand-text);
-  font-size: 1.25rem;
-  font-weight: 730;
+  font-size: 2.5rem;
+  font-weight: 720;
   letter-spacing: -0.055em;
-  /* centred on the screen, not the topbar, so it doesn't move when the sidebar opens:
-     the topbar starts --sidebar-w from the left, so the screen's middle is at
-     50% - --sidebar-w / 2 of the topbar */
   position: absolute;
   left: calc(50% - var(--sidebar-w) / 2);
   transform: translateX(-50%);
 }
 .brand img {
-  width: 30px;
+  width: 40px;
 }
 .brand:hover {
   text-decoration: none;
