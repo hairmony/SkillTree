@@ -59,7 +59,7 @@ const icons = Object.fromEntries(
     ];
   }),
 );
-export function Icon({ name, size = 24 }) {
+export function Icon({ name, size = 28 }) {
   const icon = icons[name];
   return (
     <svg
