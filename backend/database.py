@@ -115,7 +115,27 @@ CREATE TABLE IF NOT EXISTS opened_sources (  -- lesson sources the learner click
     opened_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, url)
 );
+CREATE TABLE IF NOT EXISTS achievements (  -- when each achievement was first seen as earned
+    user_id INTEGER NOT NULL,
+    id TEXT NOT NULL,
+    unlocked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, id)
+);
 """
+
+
+def record_achievements(ids: list[str]) -> None:
+    """Save the unlock time of newly earned achievements (ones already saved keep theirs)."""
+    with connect() as conn:
+        conn.executemany("INSERT OR IGNORE INTO achievements (user_id, id) VALUES (?, ?)",
+                         [(USER_ID, i) for i in ids])
+
+
+def get_achievements() -> dict[str, str]:
+    """{achievement id: unlocked_at} for every recorded achievement."""
+    with connect() as conn:
+        return dict(conn.execute("SELECT id, unlocked_at FROM achievements WHERE user_id = ?",
+                                 (USER_ID,)).fetchall())
 
 
 def record_source_opened(url: str) -> None:

@@ -577,10 +577,23 @@ def source_opened(req: SourceOpened):
     return stats()
 
 
+class AchievementsUnlocked(BaseModel):
+    ids: list[str]
+
+
+@app.post("/achievements/unlocked")
+def achievements_unlocked(req: AchievementsUnlocked):
+    """The frontend saw these achievements earned; remember when (first time only)."""
+    database.record_achievements([i[:100] for i in req.ids[:100]])
+    return stats()
+
+
 @app.get("/stats")
 def stats():
-    """Activity counts the achievements need that aren't in the trees or quizzes."""
-    return {"sources_opened": database.count_sources_opened()}
+    """Activity the achievements need that isn't in the trees or quizzes, and when each
+    achievement was unlocked."""
+    return {"sources_opened": database.count_sources_opened(),
+            "achievements": database.get_achievements()}
 
 
 @app.get("/trees/{tree_id}/quizzes")

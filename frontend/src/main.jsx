@@ -11,6 +11,7 @@ import { useTreeJob } from "./useTreeJob";
 import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
 import { LABELS, TITLES } from "./labels";
+import { achievementList } from "./achievements";
 
 const primaryNav = Object.entries(TITLES.TAB_TITLES); // [key, sidebar label]
 document.title = TITLES.APP; // browser tab
@@ -118,6 +119,18 @@ function App() {
   useEffect(() => {
     refresh().catch(() => {});
   }, [refresh]);
+  // save when each achievement is first earned (Achievements tab lists latest first)
+  useEffect(() => {
+    if (loading || connectionError || !xp) return;
+    request("/stats")
+      .then((stats) => {
+        const fresh = achievementList({ trees, xp, stats })
+          .filter((a) => a.unlocked && !(a.id in stats.achievements))
+          .map((a) => a.id);
+        if (fresh.length) return request("/achievements/unlocked", { ids: fresh });
+      })
+      .catch(() => {});
+  }, [trees, xp, loading, connectionError]);
   useEffect(() => {
     setMenu(false);
     if (trees.some((t) => t.id === id)) localStorage.setItem("recentTree", id);

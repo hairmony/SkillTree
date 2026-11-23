@@ -13,7 +13,7 @@ import {
   url,
 } from "../ui";
 import { LABELS, TITLES } from "../labels";
-import { ACHIEVEMENTS } from "../achievements";
+import { achievementList } from "../achievements";
 // Stat row (skill trees, concepts completed, quizzes taken, average score),
 // shown on the Dashboard and Analytics tabs.
 function Metrics({ trees }) {
@@ -219,12 +219,8 @@ export function Analytics({ trees }) {
 }
 export function Achievements({ trees, xp }) {
   // the list itself lives in src/achievements.js
-  const quizzes = trees.flatMap((t) => t.history);
-  const stats = useRead("/stats").data; // e.g. sources opened
-  const awards = ACHIEVEMENTS.map((a) => ({
-    ...a,
-    unlocked: a.earned({ trees, quizzes, xp, stats }),
-  }));
+  const stats = useRead("/stats").data; // sources opened, unlock times
+  const awards = achievementList({ trees, xp, stats });
   return (
     <>
       <PageTitle {...TITLES.PAGES.achievements} />

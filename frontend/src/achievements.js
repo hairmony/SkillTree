@@ -40,24 +40,29 @@ const levels = (tree) => {
   return level;
 };
 
+// every achievement with .unlocked, in display order: earned ones first (latest unlocked
+// first), then the locked ones in the order of the list below. data = { trees, xp, stats }
+export function achievementList({ trees, xp, stats }) {
+  const quizzes = trees.flatMap((t) => t.history);
+  const times = stats?.achievements || {};
+  const now = new Date().toISOString().replace("T", " "); // just earned, not saved yet
+  return ACHIEVEMENTS.map((a, position) => {
+    const unlocked = a.earned({ trees, quizzes, xp, stats });
+    return { ...a, position, unlocked, unlockedAt: unlocked ? times[a.id] || now : "" };
+  }).sort(
+    (a, b) =>
+      b.unlocked - a.unlocked ||
+      b.unlockedAt.localeCompare(a.unlockedAt) ||
+      a.position - b.position, // same time (or both locked): keep the list's order
+  );
+}
+
 export const ACHIEVEMENTS = [
   {
     id: "finally-awake",
     name: "Finally Awake",
     description: "Complete your first assessment.",
     earned: ({ quizzes }) => quizzes.length > 0,
-  },
-  {
-    id: "impressive",
-    name: "Impressive!",
-    description: "Pass a quiz with a score of 75% or higher.",
-    earned: ({ quizzes }) => quizzes.some((q) => q.score >= 0.75),
-  },
-  {
-    id: "total-recall",
-    name: "Total Recall",
-    description: "Answer every question correctly in a quiz.",
-    earned: ({ quizzes }) => quizzes.some((q) => q.score === 1),
   },
   {
     id: "branch-manager",
@@ -72,28 +77,26 @@ export const ACHIEVEMENTS = [
     earned: ({ trees }) => finished(trees, "required"),
   },
   {
-    id: "arborist",
-    name: "Arborist",
-    description: "Finish all core concepts in one skill tree.",
-    earned: ({ trees }) => trees.some(coreDone),
-  },
-  {
-    id: "polymath",
-    name: "Polymath",
-    description: "Reach level 25.",
-    earned: ({ xp }) => (xp?.level ?? 1) >= 25,
-  },
-  {
-    id: "omniscient",
-    name: "Omniscient",
-    description: "Reach level 50.",
-    earned: ({ xp }) => (xp?.level ?? 1) >= 50,
-  },
-  {
     id: "keeper-of-the-forest",
     name: "Keeper of the Forest",
     description: "Create 10 skill trees.",
     earned: ({ trees }) => trees.length >= 10,
+  },
+  {
+    id: "deep-roots",
+    name: "Deep Roots",
+    description: "Master a concept 4 or more levels deep in a skill tree.",
+    earned: ({ trees }) =>
+      trees.some((t) => {
+        const level = levels(t);
+        return t.nodes.some((n) => n.status === "mastered" && level[n.id] >= 4);
+      }),
+  },
+  {
+    id: "arborist",
+    name: "Arborist",
+    description: "Finish all core concepts in one skill tree.",
+    earned: ({ trees }) => trees.some(coreDone),
   },
   {
     id: "completionist",
@@ -101,6 +104,18 @@ export const ACHIEVEMENTS = [
     description: "Master every concept in a skill tree, including optional ones.",
     earned: ({ trees }) =>
       trees.some((t) => t.nodes.length > 0 && t.nodes.every((n) => n.status === "mastered")),
+  },
+  {
+    id: "impressive",
+    name: "Impressive!",
+    description: "Pass a quiz with a score of 75% or higher.",
+    earned: ({ quizzes }) => quizzes.some((q) => q.score >= 0.75),
+  },
+  {
+    id: "total-recall",
+    name: "Total Recall",
+    description: "Answer every question correctly in a quiz.",
+    earned: ({ quizzes }) => quizzes.some((q) => q.score === 1),
   },
   {
     id: "honours-student",
@@ -133,19 +148,21 @@ export const ACHIEVEMENTS = [
     earned: ({ quizzes }) => longestStreak(quizzes) >= 7,
   },
   {
-    id: "deep-roots",
-    name: "Deep Roots",
-    description: "Master a concept 4 or more levels deep in a skill tree.",
-    earned: ({ trees }) =>
-      trees.some((t) => {
-        const level = levels(t);
-        return t.nodes.some((n) => n.status === "mastered" && level[n.id] >= 4);
-      }),
-  },
-  {
     id: "meticulous",
     name: "Meticulous",
     description: "Open 25 different lesson sources.",
     earned: ({ stats }) => (stats?.sources_opened ?? 0) >= 25,
+  },
+  {
+    id: "polymath",
+    name: "Polymath",
+    description: "Reach level 25.",
+    earned: ({ xp }) => (xp?.level ?? 1) >= 25,
+  },
+  {
+    id: "precog",
+    name: "Precog",
+    description: "Reach level 50.",
+    earned: ({ xp }) => (xp?.level ?? 1) >= 50,
   },
 ];
