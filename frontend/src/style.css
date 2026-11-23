@@ -1,16 +1,99 @@
 :root {
-  /* always reserve the scrollbar's space, so content sits in the same place on short
-     tabs (no scrollbar) and long tabs (scrollbar) */
+  /* always reserve the scrollbar's space, so content sits in the same place */
   scrollbar-gutter: stable;
   color-scheme: dark;
   font-family: Inter, "Segoe UI", Arial, sans-serif;
-  background: #101715;
-  color: #f2f5ed;
+  background: var(--bg);
+  color: var(--text);
   --card-gap: 20px; /* space between cards on a page, vertically and side by side */
   --panel: #19211e;
   --border: #303c35;
   --muted: #acb8af;
   --lime: #b9ee9b;
+
+  /* page */
+  --bg: #101715; /* page background */
+  --text: #f2f5ed; /* main text */
+
+  /* buttons and inputs */
+  --button-bg: #27352d;
+  --button-border: #47574b;
+  --button-text: #f4f8f1; /* also the concept titles on the map */
+  --button-primary-text: #19281c; /* text on the lime buttons */
+  --focus-ring: #c8eca9; /* keyboard focus outline */
+  --input-bg: #111b16;
+  --input-text: #eff4ea;
+  --input-border: #46564a;
+  --legend: #bfd9b3; /* fieldset headings in forms */
+  --danger: #eab5ad; /* delete button */
+
+  /* labels */
+  --label: #adbea9; /* small uppercase labels */
+  --page-eyebrow: #acc29f; /* label above each page title */
+  --topbar-title: #dce4da; /* current page name in the top bar */
+
+  /* sidebar */
+  --sidebar-bg: #141d19;
+  --brand-text: #f4f7eb; /* SkillTree logo text */
+  --nav-title: #90a296; /* WORKSPACE heading */
+  --nav-footer-text: #b7c3b9;
+  --nav-active-bg: #293b2d; /* current tab */
+  --nav-active-text: #c7efa9;
+  --avatar-bg: #394d3c;
+  --avatar-text: #d0e5bc;
+
+  /* dashboard hero */
+  --hero-bg: #19352a;
+  --hero-border: #405743;
+  --hero-shadow: #162e24; /* text shadow */
+  --hero-eyebrow: #c6e0b7;
+  --hero-dot: #b8ee98;
+  --hero-text: #ccdbca;
+  --terrain-label: #c5d6bf;
+
+  /* icon badges (stat cards, achievements) */
+  --green-bg: #2a4131;
+  --green-text: #bce99f;
+  --gold-bg: #403a29;
+  --gold-text: #e6c982; /* also the XP icon */
+  --lilac-bg: #373245;
+  --lilac-text: #c7b1ed;
+  --blue-bg: #293b44;
+  --blue-text: #a3c9e1;
+  --grey-bg: #303b34; /* locked achievements */
+  --grey-text: #a8b2a8;
+
+  /* cards */
+  --card-hover-border: #74916d; /* tree card on hover */
+  --card-chevron: #99ac9b; /* arrow on tree cards */
+  --progress-track: #344138; /* empty part of progress bars */
+  --focus-label: #d1be82; /* Learning focus label */
+
+  /* lessons */
+  --lesson-text: #d0dbce;
+  --example-accent: #63885c; /* line beside worked examples */
+
+  /* messages and overlays */
+  --notice-bg: #263629;
+  --notice-accent: #a6cd8c;
+  --notice-text: #dce6d7;
+  --tooltip-bg: #253b2e;
+  --tooltip-text: #e5eddf;
+  --tooltip-border: #536b56;
+  --scrim: #0008; /* dark overlay behind the phone menu */
+
+  /* skill tree map (ConceptMap.jsx) */
+  --map-bg: #16221b; /* map background */
+  --map-dots: #445447; /* dot grid on the background */
+  --map-line: #94ba9b; /* prerequisite lines and arrowheads */
+  --map-node-bg: #293e31; /* unlocked concept card */
+  --map-node-border: #74966f;
+  --map-node-text: #d1ddce; /* status line under the title */
+  --map-locked-bg: #202924; /* locked card (dashed border) */
+  --map-locked-border: #69766d;
+  --map-mastered-bg: #354637; /* mastered card */
+  --map-mastered-border: var(--lime);
+  --map-highlight: #dfbe7c; /* outline on the current lesson and newly added concepts */
 }
 * {
   box-sizing: border-box;
@@ -42,9 +125,9 @@ button,
   padding: 10px 16px;
   font-weight: 650;
   font-size: 0.9rem;
-  background: #27352d;
-  border: 1px solid #47574b;
-  color: #f4f8f1;
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  color: var(--button-text);
   cursor: pointer;
   transition: background 0.15s;
   text-shadow: none;
@@ -63,7 +146,7 @@ button:disabled {
 .primary,
 .light {
   background: var(--lime);
-  color: #19281c;
+  color: var(--button-primary-text);
   border: 1px solid var(--lime); /* same 1px border as other buttons, so sizes match */
 }
 button:focus-visible,
@@ -72,7 +155,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 3px solid #c8eca9;
+  outline: 3px solid var(--focus-ring);
   outline-offset: 4px;
 }
 p {
@@ -104,7 +187,7 @@ small,
   font-size: 0.72rem;
   letter-spacing: 0.13em;
   font-weight: 700;
-  color: #adbea9;
+  color: var(--label);
 }
 small {
   margin-bottom: 9px;
@@ -124,7 +207,7 @@ small {
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #141d19;
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   padding: 26px 16px 18px;
 }
@@ -132,7 +215,7 @@ small {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #f4f7eb;
+  color: var(--brand-text);
   font-size: 1.25rem;
   font-weight: 730;
   letter-spacing: -0.055em;
@@ -157,7 +240,7 @@ small {
 .nav-title {
   padding: 0 15px;
   margin: 30px 0 13px;
-  color: #90a296;
+  color: var(--nav-title);
 }
 .sidebar nav {
   display: grid;
@@ -170,14 +253,14 @@ small {
   gap: 13px;
   padding: 12px 15px;
   border-radius: 8px;
-  color: #b7c3b9;
+  color: var(--nav-footer-text);
   font-weight: 540;
   font-size: 0.94rem;
 }
 .sidebar nav a:hover,
 .sidebar nav a.active {
-  background: #293b2d;
-  color: #c7efa9;
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
   text-decoration: none;
 }
 .nav-footer {
@@ -193,7 +276,7 @@ small {
   font-size: 0.86rem;
 }
 .identity span:last-child {
-  color: #acb8af;
+  color: var(--muted);
   font-size: 0.77rem;
   display: block;
 }
@@ -201,8 +284,8 @@ small {
   border-radius: 50%;
   width: 36px;
   height: 36px;
-  background: #394d3c;
-  color: #d0e5bc;
+  background: var(--avatar-bg);
+  color: var(--avatar-text);
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -224,7 +307,7 @@ small {
 }
 .topbar b {
   font-weight: 550;
-  color: #dce4da;
+  color: var(--topbar-title);
 }
 .topbar time {
   margin-left: auto;
@@ -250,15 +333,15 @@ small {
   margin: 0 0 24px;
 }
 .page-title small {
-  color: #acc29f;
+  color: var(--page-eyebrow);
   margin-bottom: 7px;
 }
 .hero {
   isolation: isolate;
   position: relative;
   overflow: hidden;
-  background: #19352a;
-  border: 1px solid #405743;
+  background: var(--hero-bg);
+  border: 1px solid var(--hero-border);
   border-radius: 16px;
   padding: 34px 34px;
   min-height: 218px;
@@ -280,7 +363,7 @@ small {
 .hero-copy small,
 .hero-copy h2,
 .hero-copy p {
-  text-shadow: 0 2px 10px #162e24;
+  text-shadow: 0 2px 10px var(--hero-shadow);
 }
 /* recent tree: text on the left, that tree's concept map on the right */
 .hero.with-map {
@@ -316,12 +399,12 @@ small {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #c6e0b7;
+  color: var(--hero-eyebrow);
 }
 .hero-copy small i {
   width: 7px;
   height: 7px;
-  background: #b8ee98;
+  background: var(--hero-dot);
   border-radius: 50%;
 }
 .hero h2 {
@@ -329,14 +412,14 @@ small {
   letter-spacing: -0.055em;
 }
 .hero p {
-  color: #ccdbca;
+  color: var(--hero-text);
   margin: 8px 0 20px;
 }
 .terrain-label {
   position: absolute;
   bottom: 14px;
   right: 19px;
-  color: #c5d6bf;
+  color: var(--terrain-label);
   font-size: 0.65rem;
 }
 .panel {
@@ -384,24 +467,24 @@ small {
 }
 .mint,
 .iconbox {
-  background: #2a4131;
-  color: #bce99f;
+  background: var(--green-bg);
+  color: var(--green-text);
 }
 .gold {
-  background: #403a29;
-  color: #e6c982;
+  background: var(--gold-bg);
+  color: var(--gold-text);
 }
 .lilac {
-  background: #373245;
-  color: #c7b1ed;
+  background: var(--lilac-bg);
+  color: var(--lilac-text);
 }
 .blue {
-  background: #293b44;
-  color: #a3c9e1;
+  background: var(--blue-bg);
+  color: var(--blue-text);
 }
 .muted {
-  background: #303b34;
-  color: #a8b2a8;
+  background: var(--grey-bg);
+  color: var(--grey-text);
 }
 .dashboard-bottom,
 .lesson-cols {
@@ -425,7 +508,7 @@ small {
   margin-bottom: 10px;
 }
 .tree-card:hover {
-  border-color: #74916d;
+  border-color: var(--card-hover-border);
   text-decoration: none;
 }
 .tree-card > div {
@@ -436,7 +519,7 @@ small {
   overflow-wrap: anywhere;
 }
 .tree-card > svg {
-  color: #99ac9b;
+  color: var(--card-chevron);
 }
 .tree-card p,
 .focus p {
@@ -448,12 +531,12 @@ progress {
   height: 5px;
   display: block;
   border: 0;
-  background: #344138;
+  background: var(--progress-track);
   accent-color: var(--lime);
   border-radius: 4px;
 }
 progress::-webkit-progress-bar {
-  background: #344138;
+  background: var(--progress-track);
   border-radius: 4px;
 }
 progress::-webkit-progress-value {
@@ -464,7 +547,7 @@ progress::-webkit-progress-value {
   padding: 19px 20px;
 }
 .focus small {
-  color: #d1be82;
+  color: var(--focus-label);
 }
 .pad {
   padding: 24px;
@@ -515,9 +598,9 @@ select {
   max-width: 100%;
   margin: 6px 0 12px;
   padding: 11px 12px;
-  background: #111b16;
-  color: #eff4ea;
-  border: 1px solid #46564a;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
   border-radius: 7px;
 }
 textarea {
@@ -547,9 +630,9 @@ summary + label {
 }
 .notice {
   padding: 14px 17px;
-  background: #263629;
-  border-left: 3px solid #a6cd8c;
-  color: #dce6d7;
+  background: var(--notice-bg);
+  border-left: 3px solid var(--notice-accent);
+  color: var(--notice-text);
   border-radius: 5px;
 }
 .inline input {
@@ -558,8 +641,8 @@ summary + label {
 .graph-scroll {
   overflow: auto;
   margin-bottom: 20px;
-  background-color: #16221b;
-  background-image: radial-gradient(#445447 1px, transparent 1px);
+  background-color: var(--map-bg);
+  background-image: radial-gradient(var(--map-dots) 1px, transparent 1px);
   background-size: 16px 16px;
 }
 /* the full map (skill tree page) grows to the tree's whole height; only the small
@@ -589,26 +672,26 @@ summary + label {
   gap: 4px;
   line-height: 1.25;
   overflow-wrap: anywhere;
-  background: #293e31;
-  border-color: #74966f;
+  background: var(--map-node-bg);
+  border-color: var(--map-node-border);
 }
 .concept-node span {
   font-size: 0.76rem;
   font-weight: 500;
-  color: #d1ddce;
+  color: var(--map-node-text);
 }
 .concept-node.locked {
-  background: #202924;
+  background: var(--map-locked-bg);
   border-style: dashed;
-  border-color: #69766d;
+  border-color: var(--map-locked-border);
 }
 .concept-node.mastered {
-  background: #354637;
-  border-color: var(--lime);
+  background: var(--map-mastered-bg);
+  border-color: var(--map-mastered-border);
 }
 .concept-node[aria-current],
 .concept-node.new-concept {
-  outline: 2px solid #dfbe7c;
+  outline: 2px solid var(--map-highlight);
   outline-offset: 2px;
 }
 .compact .concept-node {
@@ -642,7 +725,7 @@ summary + label {
 }
 .experience-icon {
   display: flex; /* no extra line height, so it centres exactly with the text */
-  color: #e6c982; /* same gold as the old badge */
+  color: var(--gold-text); /* same gold as the old badge */
 }
 .experience-row h2 {
   line-height: 1;
@@ -673,7 +756,7 @@ summary + label {
 .delete-action {
   display: grid;
   place-items: center;
-  color: #eab5ad;
+  color: var(--danger);
   background: transparent;
   padding: 6px;
 }
@@ -691,11 +774,11 @@ summary + label {
 }
 .prose {
   white-space: pre-line;
-  color: #d0dbce;
+  color: var(--lesson-text);
   margin-bottom: 22px;
 }
 .example {
-  border-left: 2px solid #63885c;
+  border-left: 2px solid var(--example-accent);
   padding-left: 14px;
 }
 li {
@@ -768,7 +851,7 @@ fieldset {
 }
 legend {
   padding: 0 8px;
-  color: #bfd9b3;
+  color: var(--legend);
 }
 .lesson-cols a {
   overflow-wrap: anywhere;
@@ -807,7 +890,7 @@ legend {
     display: block;
     position: fixed;
     inset: 0;
-    background: #0008;
+    background: var(--scrim);
     border: 0;
     z-index: 4;
   }
@@ -982,9 +1065,9 @@ legend {
   bottom: calc(100% - 3px);
   width: max-content;
   max-width: calc(100% - 16px);
-  background: #253b2e;
-  color: #e5eddf;
-  border: 1px solid #536b56;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  border: 1px solid var(--tooltip-border);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 0.9rem;
