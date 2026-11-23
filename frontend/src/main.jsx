@@ -11,6 +11,7 @@ import { useTreeJob } from "./useTreeJob";
 import appIconUrl from "../assets/app_icon.svg";
 import "./style.css";
 import { LABELS, TITLES } from "./labels";
+import { achievementList } from "./achievements";
 
 const primaryNav = Object.entries(TITLES.TAB_TITLES); // [key, sidebar label]
 document.title = TITLES.APP; // browser tab
@@ -118,6 +119,18 @@ function App() {
   useEffect(() => {
     refresh().catch(() => {});
   }, [refresh]);
+  // save when each achievement is first earned (Achievements tab lists latest first)
+  useEffect(() => {
+    if (loading || connectionError || !xp) return;
+    request("/stats")
+      .then((stats) => {
+        const fresh = achievementList({ trees, xp, stats })
+          .filter((a) => a.unlocked && !(a.id in stats.achievements))
+          .map((a) => a.id);
+        if (fresh.length) return request("/achievements/unlocked", { ids: fresh });
+      })
+      .catch(() => {});
+  }, [trees, xp, loading, connectionError]);
   useEffect(() => {
     setMenu(false);
     if (trees.some((t) => t.id === id)) localStorage.setItem("recentTree", id);
@@ -202,10 +215,16 @@ function App() {
   return (
     <div className={"app" + (collapsed ? " sidebar-collapsed" : "")}>
       <aside className={"sidebar " + (menu ? "open" : "")}>
-        <a className="brand" href={url("dashboard")}>
-          <img src={appIconUrl} alt="" />
-          SkillTree
-        </a>
+        {/* closes the sidebar; same height and place as the topbar ☰, so it doesn't jump */}
+        <div className="brand-row">
+          <button
+            className="hamburger sidebar-close"
+            aria-label="Collapse sidebar"
+            onClick={toggleNav}
+          >
+            <Icon name="menu" />
+          </button>
+        </div>
         <div className="nav-title">{TITLES.WORKSPACE.toUpperCase()}</div>
         <nav>
           {primaryNav.map(([key, title]) => (
@@ -221,7 +240,7 @@ function App() {
           ))}
         </nav>
         <div className="nav-footer">
-          <ProfileMenu name={name} route={section} />
+          <ProfileMenu name={name} route={section} xp={xp} />
         </div>
       </aside>
       {menu && (
@@ -241,8 +260,12 @@ function App() {
           >
             <Icon name="menu" />
           </button>
+          <a className="brand" href={url("dashboard")}>
+            <img src={appIconUrl} alt="" />
+            <span className="brand-name">SkillTree</span>
+          </a>
           <span>{TITLES.WORKSPACE}</span>
-          <Icon name="chevron" />
+          <Icon name="chevron_right" />
           <b>{TITLES.TOPBAR[section] || TITLES.TOPBAR.missing}</b>
           <a className="header-profile" href={url("profile")}>
             <Avatar name={name} />

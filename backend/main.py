@@ -232,21 +232,54 @@ def source_link(c: dict) -> str | None:
     return url
 
 
+# one citation group in lesson text: [1], [1, 3], [3][5] or [3] [5]
+CITATION_MARKER = re.compile(r"[ \t]*\[\d+(?:\s*,\s*\d+)*\](?:\s*\[\d+(?:\s*,\s*\d+)*\])*")
+
+
 def with_sources(content: dict) -> dict:
-    chunks = database.get_chunks_by_ids(content["citations"])
-    sources, seen = [], set()
-    for cid in content["citations"]:
+    """Number the lesson's sources and rewrite each [n] in the text (n = the passage
+    the model was shown, i.e. retrieved[n-1]) to the number of its source in that list."""
+    retrieved = content.get("retrieved") or []
+    chunks = database.get_chunks_by_ids(list(dict.fromkeys(content["citations"] + retrieved)))
+    sources, number = [], {}  # number: source key -> position in sources (1-based)
+
+    def source_number(cid):
         c = chunks.get(cid)
         if c is None:
-            continue
+            return None
         key = c.get("url") or c["source"]
-        if key in seen:  # one entry per source; a video links to the first cited moment
-            continue
-        seen.add(key)
-        sources.append({"source": c["source"], "title": c.get("title") or c["source"],
-                        "type": c.get("source_type") or "text", "url": source_link(c)})
-    return {"details": content["details"], "examples": content["examples"],
-            "sources": sources}
+        if key not in number:  # one entry per source; a video links to the first cited moment
+            number[key] = len(sources) + 1
+            sources.append({"source": c["source"], "title": c.get("title") or c["source"],
+                            "type": c.get("source_type") or "text", "url": source_link(c)})
+        return number[key]
+
+    def renumber(match):
+        nums = []
+        for n in map(int, re.findall(r"\d+", match.group())):
+            s = source_number(retrieved[n - 1]) if 1 <= n <= len(retrieved) else None
+            if s and s not in nums:
+                nums.append(s)
+        return " [" + ", ".join(map(str, sorted(nums))) + "]" if nums else ""  # unknown: drop
+
+    details = CITATION_MARKER.sub(renumber, content["details"])  # sources numbered in text order
+    examples = []
+    for text in content["examples"]:
+        for part in re.split(r"\s+(?=Case:)", text):  # the model sometimes packs all cases into one
+            part = CITATION_MARKER.sub(renumber, part).strip()
+            if len(part.split()) >= 5:  # drop junk entries such as "citations"
+                examples.append(part)
+    for cid in content["citations"]:  # cited but never marked in the text: listed after
+        source_number(cid)
+    return {"details": split_paragraphs(details), "examples": examples, "sources": sources}
+
+
+CITATION_BREAK = re.compile(r"((?:\[\d+(?:\s*,\s*\d+)*\]\s*)+[.,;:]?)[ \t]+(?=\S)")
+
+
+def split_paragraphs(text: str) -> str:
+    """Start a new paragraph after each citation marker like [1] or [2, 3]."""
+    return re.sub(r"\n{3,}", "\n\n", CITATION_BREAK.sub("\\1\n\n", text))
 
 
 @app.get("/trees/{tree_id}/nodes/{node_id}/content")
@@ -307,9 +340,18 @@ def quiz_passages(tree_id: str, node) -> list[dict]:
     return chunks
 
 
+QUIZ_MIN, QUIZ_MAX = 2, 10  # question counts the quiz page allows
+DEFAULT_QUESTIONS = 5  # preselected count; also the size of quizzes prepared in the background
+
+
+@app.get("/quiz/sizes")
+def quiz_sizes():
+    return {"min": QUIZ_MIN, "max": QUIZ_MAX, "default": DEFAULT_QUESTIONS}
+
+
 @app.post("/trees/{tree_id}/nodes/{node_id}/quiz")
-def new_quiz(tree_id: str, node_id: str, num_questions: int = 5):
-    """A quiz of 3-6 questions with an even mix of easy, medium and hard."""
+def new_quiz(tree_id: str, node_id: str, num_questions: int = DEFAULT_QUESTIONS):
+    """A quiz of QUIZ_MIN-QUIZ_MAX questions with an even mix of easy, medium and hard."""
     dag = get_tree(tree_id)
     node = next((n for n in dag.nodes if n.id == node_id), None)
     if node is None:
@@ -317,7 +359,7 @@ def new_quiz(tree_id: str, node_id: str, num_questions: int = 5):
     status = compute_status(dag, database.get_mastered(tree_id))[node_id]
     if status != "unlocked":
         raise HTTPException(409, f"node is {status}")
-    count = max(3, min(num_questions, 6))
+    count = max(QUIZ_MIN, min(num_questions, QUIZ_MAX))
     quiz = database.take_prepared_quiz(tree_id, node_id, count)
     if quiz is None:
         background.claim(tree_id, node_id)  # wait if the background is writing it now
@@ -352,9 +394,6 @@ def build_quiz(tree_id: str, node, count: int) -> list[dict]:
         avoid=database.get_previous_questions(tree_id, node.id),
         difficulty_counts=difficulty_mix(count))
     return [q.model_dump() for q in quiz.questions[:count]]  # the model may write extra
-
-
-DEFAULT_QUESTIONS = 5  # size of quizzes prepared in the background
 
 
 def prepare_node(tree_id: str, node_id: str) -> None:
@@ -525,6 +564,36 @@ def quiz_results(tree_id: str, node_id: str):
 def get_xp():
     """The learner's total XP and level (see xp.py)."""
     return xp.get_xp()
+
+
+class SourceOpened(BaseModel):
+    url: str
+
+
+@app.post("/sources/opened")
+def source_opened(req: SourceOpened):
+    """A lesson source link was clicked; each distinct link counts once (achievements)."""
+    database.record_source_opened(req.url[:2000])
+    return stats()
+
+
+class AchievementsUnlocked(BaseModel):
+    ids: list[str]
+
+
+@app.post("/achievements/unlocked")
+def achievements_unlocked(req: AchievementsUnlocked):
+    """The frontend saw these achievements earned; remember when (first time only)."""
+    database.record_achievements([i[:100] for i in req.ids[:100]])
+    return stats()
+
+
+@app.get("/stats")
+def stats():
+    """Activity the achievements need that isn't in the trees or quizzes, and when each
+    achievement was unlocked."""
+    return {"sources_opened": database.count_sources_opened(),
+            "achievements": database.get_achievements()}
 
 
 @app.get("/trees/{tree_id}/quizzes")

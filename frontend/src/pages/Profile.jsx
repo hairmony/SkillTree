@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Experience, PageTitle, url } from "../ui";
+import { Experience, PageTitle, levelColour, url } from "../ui";
 import { LABELS, TITLES } from "../labels";
+
+// "Level N" under the name, in the same colour as the XP card's icon
+function LevelTag({ xp, as: Tag = "span" }) {
+  return (
+    <Tag style={xp ? { color: levelColour(xp.level) } : undefined}>
+      Level {xp?.level ?? 1}
+    </Tag>
+  );
+}
 
 export function Avatar({ name }) {
   return (
@@ -10,7 +19,7 @@ export function Avatar({ name }) {
   );
 }
 
-export function ProfileMenu({ name, route }) {
+export function ProfileMenu({ name, route, xp }) {
   const menu = useRef(null);
   useEffect(() => {
     menu.current.open = false;
@@ -36,7 +45,7 @@ export function ProfileMenu({ name, route }) {
         <Avatar name={name} />
         <span className="profile-label">
           <b>{name}</b>
-          <span>Learning Explorer</span>
+          <LevelTag xp={xp} />
         </span>
       </summary>
       <div className="profile-links">
@@ -78,7 +87,7 @@ export function Profile({ name, saveName, editing, xp }) {
           <Avatar name={name} />
           <div>
             <h2>{name}</h2>
-            <p>Learning Explorer</p>
+            <LevelTag xp={xp} as="p" />
           </div>
         </div>
         {editing ? (

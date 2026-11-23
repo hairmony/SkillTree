@@ -123,7 +123,7 @@ export default function ConceptMap({
                 markerHeight="5"
                 orient="auto"
               >
-                <path d="M0 0 L8 4 L0 8Z" fill="#94ba9b" />
+                <path d="M0 0 L8 4 L0 8Z" style={{ fill: "var(--map-line)" }} />
               </marker>
             </defs>
             {layout?.edges.map((d, i) => (
@@ -131,7 +131,7 @@ export default function ConceptMap({
                 key={i}
                 d={d}
                 fill="none"
-                stroke="#94ba9b"
+                style={{ stroke: "var(--map-line)" }}
                 strokeWidth="2"
                 markerEnd={`url(#${marker})`}
               />

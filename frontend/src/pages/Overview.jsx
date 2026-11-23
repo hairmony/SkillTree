@@ -1,5 +1,6 @@
 import ConceptMap from "../ConceptMap";
 import KnowledgeGaps from "./KnowledgeGaps";
+import { useRead } from "./Learning";
 import React, { useState } from "react";
 import {
   CreateTreeAction,
@@ -12,22 +13,23 @@ import {
   url,
 } from "../ui";
 import { LABELS, TITLES } from "../labels";
-import { ACHIEVEMENTS } from "../achievements";
+import { achievementList } from "../achievements";
 // Stat row (skill trees, concepts completed, quizzes taken, average score),
 // shown on the Dashboard and Analytics tabs.
 function Metrics({ trees }) {
   const quizzes = trees.flatMap((t) => t.history);
+  // icons are in assets/analytics/
   const metrics = [
-    ["trees", trees.length, "Skill trees", "mint"],
+    ["skill-trees", trees.length, "Skill trees", "mint"],
     [
-      "book",
+      "concepts-completed",
       trees.reduce((sum, t) => sum + done(t), 0),
       "Concepts completed",
       "lilac",
     ],
-    ["target", quizzes.length, "Quizzes taken", "gold"],
+    ["quizzes-taken", quizzes.length, "Quizzes taken", "gold"],
     [
-      "bolt",
+      "average-score",
       quizzes.length
         ? percent(quizzes.reduce((s, q) => s + q.score, 0) / quizzes.length)
         : "—",
@@ -40,7 +42,7 @@ function Metrics({ trees }) {
       {metrics.map(([icon, value, label, color]) => (
         <div className="panel metric" key={label}>
           <span className={"round " + color}>
-            <Icon name={icon} />
+            <Icon name={"analytics/" + icon} />
           </span>
           <strong>{value}</strong>
           <span>{label}</span>
@@ -116,9 +118,6 @@ export function Dashboard({ trees, xp, onDelete, removing }) {
             <h2>Learning focus</h2>
           </div>
           <div className="panel focus">
-            <span className="round gold">
-              <Icon name="compass" />
-            </span>
             <small>NEXT STEP</small>
             <h3>{next?.title || "Choose a concept"}</h3>
             <p>
@@ -151,7 +150,7 @@ export function Trees({ trees, onDelete, removing }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <div className="cards">
+      <div className="cards tree-grid">
         {matches.map((t) => (
           <TreeCard
             key={t.id}
@@ -220,11 +219,8 @@ export function Analytics({ trees }) {
 }
 export function Achievements({ trees, xp }) {
   // the list itself lives in src/achievements.js
-  const quizzes = trees.flatMap((t) => t.history);
-  const awards = ACHIEVEMENTS.map((a) => ({
-    ...a,
-    unlocked: a.earned({ trees, quizzes, xp }),
-  }));
+  const stats = useRead("/stats").data; // sources opened, unlock times
+  const awards = achievementList({ trees, xp, stats });
   return (
     <>
       <PageTitle {...TITLES.PAGES.achievements} />
