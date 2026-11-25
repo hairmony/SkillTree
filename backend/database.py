@@ -50,13 +50,12 @@ CREATE TABLE IF NOT EXISTS user_progress (
 CREATE TABLE IF NOT EXISTS chunks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tree_id TEXT NOT NULL,
-    source TEXT NOT NULL,
+    source TEXT NOT NULL,                      -- the link, or a label for pasted notes
     position INTEGER NOT NULL,
     text TEXT NOT NULL,
     embedding BLOB NOT NULL,
     source_type TEXT NOT NULL DEFAULT 'text',  -- video / paper / wikipedia / wikibooks / web / text
     title TEXT,
-    url TEXT,
     start_seconds REAL                         -- videos: where this chunk starts
 );
 CREATE TABLE IF NOT EXISTS tree_jobs (
@@ -80,7 +79,7 @@ CREATE TABLE IF NOT EXISTS quiz_questions (
     tree_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
     question TEXT NOT NULL,
-    options TEXT NOT NULL,
+    options TEXT NOT NULL,                -- JSON {"A": "text", "B": "text", ...}
     correct_option_id TEXT NOT NULL,
     explanation TEXT NOT NULL,
     difficulty TEXT NOT NULL,
@@ -93,8 +92,8 @@ CREATE TABLE IF NOT EXISTS quizzes (
     user_id INTEGER NOT NULL,
     tree_id TEXT NOT NULL,
     node_id TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    submitted_at TEXT,
+    create_time TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    submit_time TEXT,
     score REAL,                           -- fraction correct, set on submit
     added_nodes TEXT NOT NULL DEFAULT '[]',
     prepared INTEGER NOT NULL DEFAULT 0   -- 1 = made in the background, not shown yet
@@ -166,18 +165,36 @@ def add_chunks(tree_id: str, source: str, chunks: list[str],
 def add_doc_chunks(tree_id: str, source_type: str, title: str, url: str,
                    chunks: list[str], starts: list[float | None],
                    embeddings: list[list[float]]) -> None:
-    """Chunks from a found source, with where they came from."""
+    """Chunks from a found source, with where they came from. `source` holds the link
+    (or the title when there is none); see link_of()."""
     rows = [
         (tree_id, url or title, i, text, np.asarray(emb, dtype=np.float32).tobytes(),
-         source_type, title, url, start)
+         source_type, title, start)
         for i, (text, start, emb) in enumerate(zip(chunks, starts, embeddings))
     ]
     with connect() as conn:
         conn.executemany(
             "INSERT INTO chunks (tree_id, source, position, text, embedding, source_type, "
-            "title, url, start_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "title, start_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
+
+
+def options_to_json(options: list[dict]) -> str:
+    """Answer options are stored as one dictionary: {"A": "text", "B": "text", ...}."""
+    return json.dumps({o["id"]: o["text"] for o in options})
+
+
+def options_from_json(stored: str) -> list[dict]:
+    """Back to the [{"id", "text"}] list the rest of the app uses. Questions saved by
+    earlier versions are already a list."""
+    data = json.loads(stored)
+    return [{"id": k, "text": v} for k, v in data.items()] if isinstance(data, dict) else data
+
+
+def link_of(source: str) -> str | None:
+    """A chunk's link: its source, when that is a web address (pasted notes have none)."""
+    return source if source.startswith(("http://", "https://")) else None
 
 
 def count_chunks(tree_id: str) -> int:
@@ -213,16 +230,16 @@ def search_chunks(tree_id: str, query_embedding: list[float], k: int = 3) -> lis
     q = q / np.linalg.norm(q)
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id, source, text, embedding, source_type, title, url, start_seconds "
+            "SELECT id, source, text, embedding, source_type, title, start_seconds "
             "FROM chunks WHERE tree_id = ?",
             (tree_id,),
         ).fetchall()
     scored = []
-    for chunk_id, source, text, blob, stype, title, url, start in rows:
+    for chunk_id, source, text, blob, stype, title, start in rows:
         v = np.frombuffer(blob, dtype=np.float32)
         score = float(np.dot(q, v) / np.linalg.norm(v))
         scored.append({"id": chunk_id, "source": source, "text": text,
-                       "source_type": stype, "title": title, "url": url,
+                       "source_type": stype, "title": title, "url": link_of(source),
                        "start_seconds": start, "score": round(score, 4)})
     scored.sort(key=lambda r: r["score"], reverse=True)
     return scored[:k]
@@ -240,6 +257,13 @@ def connect():
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        # Rename columns that earlier versions named differently.
+        renamed = {"quizzes": [("submitted_at", "submit_time"), ("created_at", "create_time")]}
+        for table, columns in renamed.items():
+            have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for old, new in columns:
+                if old in have and new not in have:
+                    conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
         # Add columns that databases made by earlier versions lack.
         added = {
             "quiz_questions": [("practice", "INTEGER NOT NULL DEFAULT 0"),
@@ -250,7 +274,7 @@ def init_db() -> None:
             "quiz_attempts": [("chosen", "TEXT")],
             "quizzes": [("prepared", "INTEGER NOT NULL DEFAULT 0")],
             "chunks": [("source_type", "TEXT NOT NULL DEFAULT 'text'"), ("title", "TEXT"),
-                       ("url", "TEXT"), ("start_seconds", "REAL")],
+                       ("start_seconds", "REAL")],
         }
         for table, columns in added.items():
             have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
@@ -441,11 +465,11 @@ def get_chunks_by_ids(ids: list[int]) -> dict[int, dict]:
     marks = ",".join("?" * len(ids))
     with connect() as conn:
         rows = conn.execute(
-            f"SELECT id, source, text, source_type, title, url, start_seconds FROM chunks "
+            f"SELECT id, source, text, source_type, title, start_seconds FROM chunks "
             f"WHERE id IN ({marks})", ids
         ).fetchall()
-    return {i: {"source": s, "text": t, "source_type": st, "title": ti, "url": u,
-                "start_seconds": ss} for i, s, t, st, ti, u, ss in rows}
+    return {i: {"source": s, "text": t, "source_type": st, "title": ti, "url": link_of(s),
+                "start_seconds": ss} for i, s, t, st, ti, ss in rows}
 
 def create_quiz(tree_id: str, node_id: str, questions: list[dict],
                 prepared: bool = False) -> tuple[int, list[int]]:
@@ -462,7 +486,7 @@ def create_quiz(tree_id: str, node_id: str, questions: list[dict],
                 "INSERT INTO quiz_questions (tree_id, node_id, question, options, "
                 "correct_option_id, explanation, difficulty, quiz_id, concept) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (tree_id, node_id, q["text"], json.dumps(q["options"]),
+                (tree_id, node_id, q["text"], options_to_json(q["options"]),
                  q["correct_option_id"], q["explanation"], q["difficulty"], quiz_id,
                  q.get("concept")),
             ).lastrowid)
@@ -473,7 +497,7 @@ def has_prepared_quiz(tree_id: str, node_id: str) -> bool:
     with connect() as conn:
         return conn.execute(
             "SELECT EXISTS(SELECT 1 FROM quizzes WHERE tree_id = ? AND node_id = ? "
-            "AND user_id = ? AND prepared = 1 AND submitted_at IS NULL)",
+            "AND user_id = ? AND prepared = 1 AND submit_time IS NULL)",
             (tree_id, node_id, USER_ID),
         ).fetchone()[0] == 1
 
@@ -483,7 +507,7 @@ def take_prepared_quiz(tree_id: str, node_id: str, num_questions: int) -> dict |
     with connect() as conn:
         row = conn.execute(
             "SELECT z.id FROM quizzes z WHERE z.tree_id = ? AND z.node_id = ? "
-            "AND z.user_id = ? AND z.prepared = 1 AND z.submitted_at IS NULL "
+            "AND z.user_id = ? AND z.prepared = 1 AND z.submit_time IS NULL "
             "AND (SELECT COUNT(*) FROM quiz_questions q WHERE q.quiz_id = z.id) = ? "
             "ORDER BY z.id LIMIT 1",
             (tree_id, node_id, USER_ID, num_questions),
@@ -497,7 +521,7 @@ def take_prepared_quiz(tree_id: str, node_id: str, num_questions: int) -> dict |
 def get_quiz(quiz_id: int) -> dict | None:
     with connect() as conn:
         row = conn.execute(
-            "SELECT tree_id, node_id, submitted_at, score, added_nodes FROM quizzes "
+            "SELECT tree_id, node_id, submit_time, score, added_nodes FROM quizzes "
             "WHERE id = ? AND user_id = ?",
             (quiz_id, USER_ID),
         ).fetchone()
@@ -512,7 +536,7 @@ def get_quiz(quiz_id: int) -> dict | None:
     return {
         "id": quiz_id, "tree_id": t, "node_id": n, "submitted": sub is not None,
         "score": score, "added_nodes": json.loads(added),
-        "questions": [{"id": i, "text": q, "options": json.loads(o), "correct_option_id": c,
+        "questions": [{"id": i, "text": q, "options": options_from_json(o), "correct_option_id": c,
                        "explanation": e, "difficulty": d, "concept": cp}
                       for i, q, o, c, e, d, cp in qrows],
     }
@@ -530,7 +554,7 @@ def submit_quiz(quiz_id: int, tree_id: str, node_id: str, results: dict[int, boo
              for qid, ok in results.items()],
         )
         conn.execute(
-            "UPDATE quizzes SET submitted_at = CURRENT_TIMESTAMP, score = ? WHERE id = ?",
+            "UPDATE quizzes SET submit_time = CURRENT_TIMESTAMP, score = ? WHERE id = ?",
             (score, quiz_id),
         )
     add_mastered(tree_id, node_id)
@@ -542,7 +566,7 @@ def get_latest_quiz_results(tree_id: str, node_id: str) -> dict | None:
     with connect() as conn:
         row = conn.execute(
             "SELECT id FROM quizzes WHERE tree_id = ? AND node_id = ? AND user_id = ? "
-            "AND submitted_at IS NOT NULL ORDER BY id DESC LIMIT 1",
+            "AND submit_time IS NOT NULL ORDER BY id DESC LIMIT 1",
             (tree_id, node_id, USER_ID),
         ).fetchone()
         if row is None:
@@ -567,16 +591,16 @@ def get_quiz_history(tree_id: str) -> list[dict]:
     """Submitted quizzes for a tree, newest first."""
     with connect() as conn:
         rows = conn.execute(
-            "SELECT z.id, z.node_id, n.title, z.score, z.submitted_at, z.added_nodes, "
+            "SELECT z.id, z.node_id, n.title, z.score, z.submit_time, z.added_nodes, "
             "(SELECT group_concat(q.concept, '|') FROM quiz_questions q "
             " JOIN quiz_attempts a ON a.question_id = q.id "
             " WHERE q.quiz_id = z.id AND a.correct = 0) "
             "FROM quizzes z LEFT JOIN nodes n ON n.tree_id = z.tree_id AND n.id = z.node_id "
-            "WHERE z.tree_id = ? AND z.user_id = ? AND z.submitted_at IS NOT NULL "
+            "WHERE z.tree_id = ? AND z.user_id = ? AND z.submit_time IS NOT NULL "
             "ORDER BY z.id DESC",
             (tree_id, USER_ID),
         ).fetchall()
-    return [{"quiz_id": i, "node_id": n, "title": t, "score": s, "submitted_at": at,
+    return [{"quiz_id": i, "node_id": n, "title": t, "score": s, "submit_time": at,
              "added_nodes": json.loads(added), "missed_concepts": missed.split("|") if missed else []}
             for i, n, t, s, at, added, missed in rows]
 
@@ -612,7 +636,7 @@ def get_question(question_id: int) -> dict | None:
         return None
     t, n, q, o, c, e, d, p, answered = row
     return {"id": question_id, "tree_id": t, "node_id": n, "question": q,
-            "options": json.loads(o), "correct_option_id": c, "explanation": e,
+            "options": options_from_json(o), "correct_option_id": c, "explanation": e,
             "difficulty": d, "practice": bool(p), "answered": bool(answered)}
 
 

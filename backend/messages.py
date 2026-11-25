@@ -57,6 +57,8 @@ def done(found: str) -> str:
 
 # ---- failures
 NO_SOURCES = ("No usable sources were found for this topic. Try wording it differently or paste your own material.")
+NO_QUIZ_MATERIAL = ("This skill tree has no source material to write questions from. "
+                    "Sample trees like SkillTree Architecture are for viewing only.")
 OLLAMA_DOWN = "Can't reach Ollama."
 OLLAMA_SLOW = "Ollama took too long to answer."
 

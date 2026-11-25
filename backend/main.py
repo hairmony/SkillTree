@@ -10,7 +10,7 @@ import numpy as np
 
 import database
 from dag_structure import Node, compute_status
-from demo import DEMO_DAG
+from demo import ARCHITECTURE_DAG, ARCHITECTURE_SHOWN_UNLOCKED, DEMO_DAG
 
 import httpx
 from pydantic import BaseModel
@@ -22,7 +22,7 @@ import background
 import dag_generate
 import knowledge_tracer
 import xp
-from quiz_generator import get_quiz_generator
+from quiz_generator import ContentNotFoundError, get_quiz_generator
 
 import messages
 
@@ -37,6 +37,8 @@ app.add_middleware(
 database.init_db()
 if not database.tree_exists("demo"):
     database.save_tree("demo", "Linear Algebra", DEMO_DAG)
+if not database.tree_exists("architecture"):  # sample tree: SkillTree's own architecture
+    database.save_tree("architecture", "SkillTree Architecture", ARCHITECTURE_DAG)
 
 
 def get_tree(tree_id: str):
@@ -63,6 +65,9 @@ def list_trees():
 def read_tree(tree_id: str):
     dag = get_tree(tree_id)
     status = compute_status(dag, database.get_mastered(tree_id))
+    if tree_id == "architecture":  # sample tree: show these as unlocked (display only)
+        status.update({n: "unlocked" for n in ARCHITECTURE_SHOWN_UNLOCKED
+                       if status.get(n) == "locked"})
     mastery = database.get_mastery(tree_id)
     return {
         "nodes": [{**n.model_dump(), "status": status[n.id],
@@ -274,12 +279,27 @@ def with_sources(content: dict) -> dict:
     return {"details": split_paragraphs(details), "examples": examples, "sources": sources}
 
 
-CITATION_BREAK = re.compile(r"((?:\[\d+(?:\s*,\s*\d+)*\]\s*)+[.,;:]?)[ \t]+(?=\S)")
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])")
+MAX_SENTENCES = 5        # paragraphs longer than this are broken up...
+PARAGRAPH_SENTENCES = 4  # ...into paragraphs of this many sentences
 
 
 def split_paragraphs(text: str) -> str:
-    """Start a new paragraph after each citation marker like [1] or [2, 3]."""
-    return re.sub(r"\n{3,}", "\n\n", CITATION_BREAK.sub("\\1\n\n", text))
+    """Keep the model's own paragraphs; only break up ones longer than MAX_SENTENCES
+    (e.g. a lesson written as one big block). A lone last sentence joins the paragraph
+    before it, so 9 sentences become 4 + 5, not 4 + 4 + 1."""
+    paragraphs = []
+    for p in re.split(r"\n\s*\n", text.strip()):
+        sentences = SENTENCE_END.split(p.strip())
+        if len(sentences) <= MAX_SENTENCES:
+            paragraphs.append(p.strip())
+            continue
+        parts = [sentences[i:i + PARAGRAPH_SENTENCES]
+                 for i in range(0, len(sentences), PARAGRAPH_SENTENCES)]
+        if len(parts[-1]) == 1:
+            parts[-2] += parts.pop()
+        paragraphs += [" ".join(s) for s in parts]
+    return "\n\n".join(p for p in paragraphs if p)
 
 
 @app.get("/trees/{tree_id}/nodes/{node_id}/content")
@@ -371,6 +391,8 @@ def new_quiz(tree_id: str, node_id: str, num_questions: int = DEFAULT_QUESTIONS)
             raise HTTPException(503, "Can't reach Ollama. Is it running?")
         except httpx.ReadTimeout:
             raise HTTPException(504, "Ollama took too long to answer.")
+        except ContentNotFoundError:  # e.g. a sample tree with no source text behind it
+            raise HTTPException(422, messages.NO_QUIZ_MATERIAL)
         except ValueError as e:
             raise HTTPException(422, str(e))
         quiz_id, ids = database.create_quiz(tree_id, node_id, questions)

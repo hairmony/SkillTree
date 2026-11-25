@@ -24,7 +24,7 @@ def level_goal(levels_done: int) -> int:
 def total_xp() -> int:
     with database.connect() as conn:
         quizzes = conn.execute(
-            "SELECT COUNT(*) FROM quizzes WHERE user_id = ? AND submitted_at IS NOT NULL",
+            "SELECT COUNT(*) FROM quizzes WHERE user_id = ? AND submit_time IS NOT NULL",
             (database.USER_ID,),
         ).fetchone()[0]
         correct = conn.execute(

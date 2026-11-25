@@ -15,7 +15,7 @@ const coreDone = (tree) => {
 const finished = (trees, kind) =>
   trees.some((t) => t.nodes.some((n) => n.kind === kind && n.status === "mastered"));
 // when a quiz was submitted, in the learner's own time zone (the backend stores UTC)
-const submitted = (quiz) => new Date(quiz.submitted_at.replace(" ", "T") + "Z");
+const submitted = (quiz) => new Date(quiz.submit_time.replace(" ", "T") + "Z");
 const dayNumber = (date) =>
   Math.round(new Date(date.getFullYear(), date.getMonth(), date.getDate()) / 864e5);
 // longest run of consecutive days with at least one quiz

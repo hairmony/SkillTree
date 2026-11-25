@@ -156,7 +156,7 @@ export function Lesson({ tree, node }) {
       <p>{node.description}</p>
       <div className="lesson-cols">
         <article className="panel pad">
-          <h2>Lesson overview</h2>
+          <h2>Lesson</h2>
           {data ? (
             <>
               <div className="prose">
@@ -202,7 +202,7 @@ export function Lesson({ tree, node }) {
             )}
           </section>
           <section className="panel pad">
-            <h2>Lesson sources</h2>
+            <h2>Additional reading</h2>
             {data?.sources.map((s, i) => (
               <p key={i}>
                 <small>

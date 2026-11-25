@@ -173,7 +173,7 @@ export function Analytics({ trees }) {
   const rows = trees
     .filter((t) => !filter || t.id === filter)
     .flatMap((t) => t.history.map((q) => ({ ...q, tree: t })))
-    .sort((a, b) => b.submitted_at.localeCompare(a.submitted_at));
+    .sort((a, b) => b.submit_time.localeCompare(a.submit_time));
   return (
     <>
       <PageTitle {...TITLES.PAGES.analytics} />
@@ -201,7 +201,7 @@ export function Analytics({ trees }) {
             <div>
               <b>{q.title}</b>
               <p>
-                {q.tree.title} · {q.submitted_at}
+                {q.tree.title} · {q.submit_time}
               </p>
             </div>
             <strong>{percent(q.score)}</strong>
@@ -226,7 +226,7 @@ export function Achievements({ trees, xp }) {
       <PageTitle {...TITLES.PAGES.achievements} />
       <Experience xp={xp} />
       <p>
-        {awards.filter((a) => a.unlocked).length} of {awards.length} milestones
+        {awards.filter((a) => a.unlocked).length} of {awards.length} achievements
         earned
       </p>
       <div className="cards">
