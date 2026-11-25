@@ -226,22 +226,26 @@ def get_job(tree_id: str) -> dict | None:
 
 
 def search_chunks(tree_id: str, query_embedding: list[float], k: int = 3) -> list[dict]:
+    """The k chunks of this tree closest in meaning to the query (the retrieval step of
+    RAG). Closeness is cosine similarity between embeddings: 1 = same meaning, 0 = unrelated.
+    A tree has at most a few thousand chunks, so comparing them all with NumPy is fast
+    enough without a vector database."""
     q = np.asarray(query_embedding, dtype=np.float32)
-    q = q / np.linalg.norm(q)
+    q = q / np.linalg.norm(q)  # unit length, so the dot product below is the cosine
     with connect() as conn:
         rows = conn.execute(
             "SELECT id, source, text, embedding, source_type, title, start_seconds "
-            "FROM chunks WHERE tree_id = ?",
+            "FROM chunks WHERE tree_id = ?",  # only this tree's material
             (tree_id,),
         ).fetchall()
     scored = []
     for chunk_id, source, text, blob, stype, title, start in rows:
-        v = np.frombuffer(blob, dtype=np.float32)
-        score = float(np.dot(q, v) / np.linalg.norm(v))
+        v = np.frombuffer(blob, dtype=np.float32)  # stored bytes back to a vector
+        score = float(np.dot(q, v) / np.linalg.norm(v))  # cosine similarity
         scored.append({"id": chunk_id, "source": source, "text": text,
                        "source_type": stype, "title": title, "url": link_of(source),
                        "start_seconds": start, "score": round(score, 4)})
-    scored.sort(key=lambda r: r["score"], reverse=True)
+    scored.sort(key=lambda r: r["score"], reverse=True)  # most similar first
     return scored[:k]
 
 @contextmanager

@@ -202,7 +202,7 @@ export function Lesson({ tree, node }) {
             )}
           </section>
           <section className="panel pad">
-            <h2>Additional reading</h2>
+            <h2>Grow your knowledge</h2>
             {data?.sources.map((s, i) => (
               <p key={i}>
                 <small>
