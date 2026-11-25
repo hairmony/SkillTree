@@ -326,7 +326,6 @@ def node_content(tree_id: str, node_id: str):
 
 
 PASS_SCORE = 0.75      # below this, a required review node is added before the next node
-MAX_ADDED_DEPTH = 2    # quiz-added nodes can themselves add nodes, this many levels deep
 MAX_OPTIONAL = 3       # optional branches added per quiz
 DUPLICATE_SIMILARITY = 0.85  # an optional branch this similar to an unfinished node is skipped
 
@@ -496,7 +495,7 @@ def submit_quiz(quiz_id: int, req: SubmitRequest):
 
     added, added_error = [], None
     required = score < PASS_SCORE
-    if missed and node.depth < MAX_ADDED_DEPTH:
+    if missed:  # no depth limit: the tree keeps growing wherever the learner struggles
         try:
             added = add_gap_nodes(tree_id, dag, node, missed, required)
             database.set_quiz_added_nodes(quiz_id, [a["id"] for a in added])
