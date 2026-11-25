@@ -3,6 +3,9 @@ Quiz generation from textbook content.
 
 Retrieves the most relevant chunk for a topic from the subject's index and asks
 the LLM for multiple-choice questions returned as JSON.
+
+Adapted from Adaptive Knowledge Graph (see THIRD-PARTY-NOTICES.md). SkillTree's own
+quiz logic (passages, difficulty mix, build_quiz) is at the end of this file.
 """
 
 import json
@@ -373,3 +376,50 @@ def clear_quiz_generators() -> None:
     """Clear all cached quiz generators."""
     _quiz_generators.clear()
     logger.info("Cleared all cached quiz generators")
+
+
+# ---------------------------------------------------------------- SkillTree
+# Everything below is SkillTree's own code (the rest of this file is adapted from
+# Adaptive Knowledge Graph): which passages a quiz uses, the difficulty mix, and the
+# call that writes a quiz for one concept.
+
+
+def target_difficulty(mastery: float) -> str:
+    """Difficulty for a mastery level (currently unused).
+    Bands from adaptive-knowledge-graph (student/models.py, policy band-v1)."""
+    if mastery < 0.4:
+        return "easy"
+    if mastery <= 0.7:
+        return "medium"
+    return "hard"
+
+
+def difficulty_mix(n: int) -> dict[str, int]:
+    """Split n questions into easy/medium/hard as evenly as possible (5 -> 2/2/1)."""
+    base, extra = divmod(n, 3)
+    return {"easy": base + (extra >= 1), "medium": base + (extra >= 2), "hard": base}
+
+
+def quiz_passages(tree_id: str, node) -> list[dict]:
+    """The node's own passages (the ones its lesson page uses), rotated between quizzes"""
+    content = database.get_node_content(tree_id, node.id)
+    if content and content["retrieved"]:
+        by_id = database.get_chunks_by_ids(content["retrieved"])
+        chunks = [{"id": i, **by_id[i]} for i in content["retrieved"] if i in by_id]
+    else:
+        chunks = database.search_chunks(tree_id, embed([f"{node.title}. {node.description}"])[0], k=6)
+    if len(chunks) > 4:
+        start = database.count_quizzes(tree_id, node.id) % len(chunks)
+        chunks = (chunks[start:] + chunks[:start])[:4]
+    return chunks
+
+
+def build_quiz(tree_id: str, node, count: int) -> list[dict]:
+    """Write `count` questions for a node (easy/medium/hard mix). Raises httpx errors
+    or ValueError."""
+    quiz = get_quiz_generator(tree_id).generate_from_topic(
+        f"{node.title}. {node.description}", count,
+        passages=quiz_passages(tree_id, node),
+        avoid=database.get_previous_questions(tree_id, node.id),
+        difficulty_counts=difficulty_mix(count))
+    return [q.model_dump() for q in quiz.questions[:count]]  # the model may write extra

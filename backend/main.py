@@ -22,7 +22,7 @@ import background
 import dag_generate
 import knowledge_tracer
 import xp
-from quiz_generator import ContentNotFoundError, get_quiz_generator
+from quiz_generation import ContentNotFoundError, build_quiz
 
 import messages
 
@@ -37,8 +37,9 @@ app.add_middleware(
 database.init_db()
 if not database.tree_exists("demo"):
     database.save_tree("demo", "Linear Algebra", DEMO_DAG)
-if not database.tree_exists("architecture"):  # sample tree: SkillTree's own architecture
-    database.save_tree("architecture", "SkillTree Architecture", ARCHITECTURE_DAG)
+# Sample tree with SkillTree's own architecture (ARCHITECTURE_DAG in demo.py). Not
+# created automatically, so it stays deleted; to bring it back, run once:
+#   database.save_tree("architecture", "SkillTree Architecture", ARCHITECTURE_DAG)
 
 
 def get_tree(tree_id: str):
@@ -324,40 +325,10 @@ def node_content(tree_id: str, node_id: str):
     return with_sources(content)
 
 
-def target_difficulty(mastery: float) -> str:
-    # Bands from adaptive-knowledge-graph (student/models.py, policy band-v1)
-    if mastery < 0.4:
-        return "easy"
-    if mastery <= 0.7:
-        return "medium"
-    return "hard"
-
-
 PASS_SCORE = 0.75      # below this, a required review node is added before the next node
 MAX_ADDED_DEPTH = 2    # quiz-added nodes can themselves add nodes, this many levels deep
 MAX_OPTIONAL = 3       # optional branches added per quiz
 DUPLICATE_SIMILARITY = 0.85  # an optional branch this similar to an unfinished node is skipped
-
-
-def difficulty_mix(n: int) -> dict[str, int]:
-    """Split n questions into easy/medium/hard as evenly as possible (5 -> 2/2/1)."""
-    base, extra = divmod(n, 3)
-    return {"easy": base + (extra >= 1), "medium": base + (extra >= 2), "hard": base}
-
-
-def quiz_passages(tree_id: str, node) -> list[dict]:
-    """The node's own passages (the ones its study page uses), rotated between quizzes
-    so retakes see different text first."""
-    content = database.get_node_content(tree_id, node.id)
-    if content and content["retrieved"]:
-        by_id = database.get_chunks_by_ids(content["retrieved"])
-        chunks = [{"id": i, **by_id[i]} for i in content["retrieved"] if i in by_id]
-    else:
-        chunks = database.search_chunks(tree_id, embed([f"{node.title}. {node.description}"])[0], k=6)
-    if len(chunks) > 4:
-        start = database.count_quizzes(tree_id, node.id) % len(chunks)
-        chunks = (chunks[start:] + chunks[:start])[:4]
-    return chunks
 
 
 QUIZ_MIN, QUIZ_MAX = 2, 10  # question counts the quiz page allows
@@ -405,17 +376,6 @@ def new_quiz(tree_id: str, node_id: str, num_questions: int = DEFAULT_QUESTIONS)
                        "difficulty": q["difficulty"]}
                       for q in quiz["questions"]],
     }
-
-
-def build_quiz(tree_id: str, node, count: int) -> list[dict]:
-    """Write `count` questions for a node (easy/medium/hard mix). Raises httpx errors
-    or ValueError."""
-    quiz = get_quiz_generator(tree_id).generate_from_topic(
-        f"{node.title}. {node.description}", count,
-        passages=quiz_passages(tree_id, node),
-        avoid=database.get_previous_questions(tree_id, node.id),
-        difficulty_counts=difficulty_mix(count))
-    return [q.model_dump() for q in quiz.questions[:count]]  # the model may write extra
 
 
 def prepare_node(tree_id: str, node_id: str) -> None:
