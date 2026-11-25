@@ -65,13 +65,13 @@ export const TITLES = {
 
   // page headings. The small label above it is the page's sidebar tab from TAB_TITLES, added automatically. Tree, lesson and quiz pages show the tree/concept name as their title
   PAGES: {
-    dashboard: { title: "My Dashboard" },
-    trees: { title: "My Skill Trees" },
-    analytics: { title: "My Analytics" },
-    achievements: { title: "My Achievements" },
+    dashboard: { title: "My Dashboard." },
+    trees: { title: "My Skill Trees." },
+    analytics: { title: "My Analytics." },
+    achievements: { title: "My Achievements." },
 
-    create: { title: "Create My Tree" },
-    profile: { title: "My Profile" },
-    settings: { title: "Settings" },
+    create: { title: "Create My Tree." },
+    profile: { title: "My Profile." },
+    settings: { title: "Settings." },
   },
 };

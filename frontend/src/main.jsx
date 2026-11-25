@@ -262,7 +262,7 @@ function App() {
           </button>
           <a className="brand" href={url("dashboard")}>
             <img src={appIconUrl} alt="" />
-            <span className="brand-name">SkillTree</span>
+            <span className="brand-name">SkillTree.</span>
           </a>
           <span>{TITLES.WORKSPACE}</span>
           <Icon name="chevron_right" />
