@@ -40,10 +40,10 @@ function PassageSearch({ tree }) {
   }
   return (
     <section className="panel pad">
-      <h2>Search source passages</h2>
+      <h2>Search sources</h2>
       <form onSubmit={search} className="inline">
         <input
-          aria-label="Search source passages"
+          aria-label="Search sources"
           placeholder="Search a concept or question"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
