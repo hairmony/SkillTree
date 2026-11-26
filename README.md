@@ -63,11 +63,11 @@ npm install
 
 ## Authors
 
-[Hariharan Vallath](https://github.com/hairmony/)
-[Varshithreddy Ramidi](https://github.com/Varshith09y)
+- [Hariharan Vallath](https://github.com/hairmony/)
+- [Varshithreddy Ramidi](https://github.com/Varshith09y)
 
-for
-COMP-5112 Research Methodology
+for\
+COMP-5112 Research Methodology\
 Lakehead University
 
 ## Licences
